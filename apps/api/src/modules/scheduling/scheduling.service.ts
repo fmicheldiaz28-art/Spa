@@ -5,6 +5,7 @@ import { resolveBranch, resolveOrganizationId } from '../../common/org.js';
 import type { ExceptionStatus, ExceptionType, Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
+import { EventsService } from '../events/events.service.js';
 import {
   addDays,
   contains,
@@ -64,6 +65,7 @@ export class SchedulingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly events: EventsService,
   ) {}
 
   // ---------------------------------------------------------------- colaboradoras
@@ -186,6 +188,7 @@ export class SchedulingService {
       );
     });
 
+    this.events.scheduleChanged(staff.organizationId, staffId);
     const outside = await this.appointmentsOutside(staffId, branch.timezone, validFrom, blocks);
     return { ...(await this.workSchedule(user, staffId)), appointmentsOutside: outside };
   }
@@ -360,6 +363,7 @@ export class SchedulingService {
       return e;
     });
 
+    this.events.scheduleChanged(organizationId, input.staffId);
     const affected = input.type === 'EXTRA' ? [] : await this.affectedAppointments(input.staffId, organizationId, startAt, endAt);
     return { exception: this.exceptionDto(created, branch.timezone), affectedAppointments: affected };
   }
@@ -435,6 +439,7 @@ export class SchedulingService {
       );
       return u;
     });
+    if (approve) this.events.scheduleChanged(organizationId, e.staffId);
     const affected = approve ? await this.affectedAppointments(e.staffId, organizationId, e.startAt, e.endAt) : [];
     return { exception: this.exceptionDto(updated, branch.timezone), affectedAppointments: affected };
   }

@@ -9,6 +9,7 @@ import { BookingModule } from './modules/booking/booking.module.js';
 import { CatalogModule } from './modules/catalog/catalog.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
+import { EventsModule } from './modules/events/events.module.js';
 import { HealthController } from './modules/health/health.controller.js';
 import { OrganizationModule } from './modules/organization/organization.module.js';
 import { PaymentsModule } from './modules/payments/payments.module.js';
@@ -21,6 +22,7 @@ import { UsersModule } from './modules/users/users.module.js';
     PrismaModule,
     CommonModule,
     AuditModule,
+    EventsModule,
     AuthModule,
     UsersModule,
     CatalogModule,

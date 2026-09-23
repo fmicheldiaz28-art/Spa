@@ -68,13 +68,13 @@ Abre http://localhost:3000.
 | Clientes con privacidad por rol, contacto enmascarado y revelación auditada, importación CSV | ✅ | `/app/clientes` |
 | Servicios, categorías y paquetes (secuencia y paralelo) | ✅ | `/app/servicios`, `/app/paquetes` |
 | Colaboradoras, horario semanal con vigencia, ausencias, solicitudes, feriados, horario del negocio | ✅ | `/app/colaboradoras`, `/app/horarios` |
-| Agenda día/semana/lista, crear, reagendar (arrastrar y soltar), estados, cancelar, eliminar y restaurar, historial | ✅ | `/app/agenda`, `/app/mi-dia` |
+| Agenda día/semana/mes/lista, crear, reagendar (arrastrar y soltar), estados, cancelar, eliminar y restaurar, historial | ✅ | `/app/agenda`, `/app/mi-dia` |
+| Actualización en tiempo real de la agenda (Server-Sent Events, filtrada por colaboradora) | ✅ | `GET /api/v1/events` |
 | Cobros (pago dividido, anulación) y cierre de caja | ✅ | `/app/cobros` |
 | Dashboard con 7 KPIs y 4 gráficas | ✅ | `/app/dashboard` |
 | Reportes (ventas, servicios, clientes, personal, cancelaciones) y exportación a Excel | ✅ | `/app/reportes` |
 | Reservas online 24/7, verificación por código, gestión por enlace, "Mis reservas" | ✅ | `/reservar`, `/mi-cuenta` |
 | Configuración del negocio y políticas | ✅ | `/app/configuracion` |
-| Vista mes de la agenda y tiempo real por WebSocket | ⏳ Pendiente (la agenda se actualiza cada 30 s) | |
 | Recordatorios por WhatsApp/email, MFA, RLS, cola de trabajos con Redis | ⏳ Fase 2 | docs/10 §17 |
 
 **Diferencia con el documento de diseño:** las clientas no usan contraseña. Se identifican con un código enviado a su email y gestionan su reserva con el enlace privado del email de confirmación. Es menos fricción para ellas y evita guardar contraseñas débiles.
@@ -89,5 +89,6 @@ Abre http://localhost:3000.
 - **Argon2id en WebAssembly** (`hash-wasm`, m = 64 MiB, t = 3, p = 1): sin binarios nativos, idéntico en Windows, Linux y CI.
 - **Fechas siempre en UTC:** el adaptador de Prisma para PostgreSQL envía y lee `timestamptz` sin desplazamiento horario, así que cada conexión fuerza `TimeZone=UTC` y una migración fija UTC en la base. La hora de La Paz se muestra en la aplicación.
 - **Doble reserva imposible en tres capas:** motor de disponibilidad (función pura con pruebas), retención de 10 min del horario en reservas online y restricción `EXCLUDE` en PostgreSQL. Las retenciones y la idempotencia viven en memoria (una instancia); al escalar pasan a Redis con la misma interfaz.
+- **Tiempo real con Server-Sent Events** (alternativa prevista en docs §8) en lugar de Socket.IO: sin dependencias nuevas y suficiente porque el flujo es solo servidor → navegador. Los eventos llevan únicamente identificadores; cada pantalla vuelve a pedir los datos con sus permisos. El stream se cierra al vencer el access token y el cliente se reconecta. Bus en memoria (una instancia); al escalar, Redis pub/sub.
 - **Pendiente de verificar con PostgreSQL real:** la prueba de concurrencia (10 reservas simultáneas del mismo horario) se ejecutó sobre PGlite. La base respondió bien (una sola cita creada), pero PGlite se desincroniza con transacciones concurrentes que fallan. Hay que repetirla con Docker o `db:start`.
 - **JWT firmado con HS256** en esta etapa; el paso a EdDSA con rotación de claves (docs §19.2) está previsto para el hardening del Sprint 6.

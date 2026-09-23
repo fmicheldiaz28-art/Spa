@@ -7,6 +7,7 @@ import type { AppointmentSource, CancelledByType, Prisma } from '../../generated
 import { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { AvailabilityService, SLOT_PROBLEM_MESSAGES } from '../availability/availability.service.js';
+import { EventsService } from '../events/events.service.js';
 import { addDays, localToUtc } from '../availability/domain/time.js';
 import {
   availableActions,
@@ -63,6 +64,7 @@ export class AppointmentsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly availability: AvailabilityService,
+    private readonly events: EventsService,
   ) {}
 
   // -------------------------------------------------------------------- lectura
@@ -264,6 +266,7 @@ export class AppointmentsService {
         );
         return a;
       });
+      this.events.appointmentChanged(organizationId, created.id, created.items.map((i) => i.staffId));
       return this.dto(user, created);
     } catch (err) {
       if (isOverlapViolation(err)) await this.throwSlotTaken(user, items[0]!);
@@ -471,6 +474,7 @@ export class AppointmentsService {
       );
       await this.refreshClientStats(tx, before.clientId);
     });
+    this.events.appointmentChanged(before.organizationId, id, before.items.map((i) => i.staffId));
   }
 
   async restore(user: AuthUser, id: string) {
@@ -484,6 +488,7 @@ export class AppointmentsService {
         await this.refreshClientStats(tx, before.clientId);
         return a;
       });
+      this.events.appointmentChanged(organizationId, id, after.items.map((i) => i.staffId));
       return this.dto(user, after);
     } catch (err) {
       if (isOverlapViolation(err)) throw new AppException(409, 'SLOT_TAKEN', 'El horario ya fue ocupado por otra cita', 'Restáurala y reagéndala, o crea una nueva.');
@@ -516,6 +521,8 @@ export class AppointmentsService {
       }
       return fn(tx);
     });
+    // Aviso en tiempo real a quienes ven la cita antes y después (ej. reasignada a otra colaboradora).
+    this.events.appointmentChanged(result.organizationId, result.id, [...before.items, ...result.items].map((i) => i.staffId));
     return this.dto(user, result);
   }
 

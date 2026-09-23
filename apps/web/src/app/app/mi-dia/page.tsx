@@ -8,6 +8,7 @@ import { Alert, Badge, Button } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { ACTION_LABELS, type Appointment, type CalendarData, STATUS, timeOf } from '@/lib/appointments';
 import { useAuth } from '@/lib/auth';
+import { LiveDot, useLiveUpdates } from '@/lib/live';
 import { todayLocal } from '@/lib/schedule';
 
 /** "Mi día" de la especialista (docs/09-ux-ui.md §15.7): solo sus citas, sin montos ni contactos. */
@@ -29,9 +30,11 @@ export default function MyDayPage() {
 
   useEffect(() => {
     void load();
-    const t = setInterval(() => void load(), 30_000);
+    const t = setInterval(() => void load(), 120_000); // respaldo de la conexión en vivo
     return () => clearInterval(t);
   }, [load]);
+
+  const live = useLiveUpdates(() => void load());
 
   async function act(a: Appointment, action: 'check-in' | 'complete' | 'no-show') {
     setBusy(a.id);
@@ -53,7 +56,10 @@ export default function MyDayPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <h1 className="text-2xl font-semibold tracking-tight">Hola, {user?.firstName} 🌿</h1>
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Hola, {user?.firstName} 🌿</h1>
+        <LiveDot status={live} />
+      </div>
       <p className="mt-1 text-sm text-muted">
         {list.length ? `${list.length} ${list.length === 1 ? 'cita' : 'citas'} hoy · ${Math.floor(minutes / 60)} h ${minutes % 60} min` : 'Aquí verás solo tus citas del día.'}
         {next && ` · Próxima: ${timeOf(next.startAt)}`}

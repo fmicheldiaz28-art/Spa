@@ -14,6 +14,7 @@ import { AvailabilityService } from '../availability/availability.service.js';
 import { pickLeastBusy } from '../availability/domain/availability.engine.js';
 import { addDays, localDate, utcToLocalMinutes } from '../availability/domain/time.js';
 import { HoldStore } from '../availability/hold-store.js';
+import { EventsService } from '../events/events.service.js';
 import { ClientTokenService } from './client-token.service.js';
 
 interface Settings {
@@ -78,6 +79,7 @@ export class BookingService {
     private readonly audit: AuditService,
     private readonly mail: MailService,
     private readonly tokens: ClientTokenService,
+    private readonly events: EventsService,
   ) {}
 
   private async ctx() {
@@ -313,6 +315,7 @@ export class BookingService {
       this.holds.release(hold.id);
     }
 
+    this.events.appointmentChanged(organizationId, appointment.id, [hold.staffId]);
     const manageUrl = `${env.WEB_ORIGIN}/reservar/gestionar/${manageToken}`;
     this.notify(email, `Reserva ${status === 'CONFIRMADA' ? 'confirmada' : 'recibida'} · ${appointment.code}`, [
       `Hola ${client.firstName}:`,
@@ -398,6 +401,7 @@ export class BookingService {
       );
       return u;
     });
+    this.events.appointmentChanged(a.organizationId, a.id, a.items.map((i) => i.staffId));
     if (a.client.email) this.notify(a.client.email, `Reserva cancelada · ${a.code}`, [`Hola ${a.client.firstName}:`, '', `Cancelamos tu reserva del ${this.formatLocal(a.startAt, branch.timezone)}.`, 'Te esperamos cuando quieras volver.']);
     return this.publicDto(updated, branch.timezone, settings);
   }
@@ -439,6 +443,7 @@ export class BookingService {
         );
         return u;
       });
+      this.events.appointmentChanged(a.organizationId, a.id, [item.staffId]);
       if (a.client.email) this.notify(a.client.email, `Reserva reagendada · ${a.code}`, [`Hola ${a.client.firstName}:`, '', `Tu reserva quedó para el ${this.formatLocal(startAt, branch.timezone)}.`]);
       return this.publicDto(updated, branch.timezone, settings);
     } catch (err) {

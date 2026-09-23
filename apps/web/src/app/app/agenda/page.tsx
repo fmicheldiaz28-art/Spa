@@ -23,9 +23,10 @@ import {
   weekStart,
 } from '@/lib/appointments';
 import { useAuth } from '@/lib/auth';
+import { LiveDot, useLiveUpdates } from '@/lib/live';
 import { todayLocal } from '@/lib/schedule';
 
-type View = 'day' | 'week' | 'list';
+type View = 'day' | 'week' | 'month' | 'list';
 
 const SLOT_MIN = 15;
 const PX_PER_MIN = 1.1; // 15 min ≈ 16.5 px, 1 h ≈ 66 px
@@ -68,6 +69,11 @@ function AgendaContent() {
       const start = weekStart(date);
       return { from: start, to: addDays(start, 6) };
     }
+    if (view === 'month') {
+      // Cuadrícula de 6 semanas que contiene el mes completo.
+      const start = weekStart(`${date.slice(0, 8)}01`);
+      return { from: start, to: addDays(start, 41) };
+    }
     return { from: date, to: date };
   }, [date, view]);
 
@@ -93,12 +99,21 @@ function AgendaContent() {
 
   useEffect(() => {
     void load();
-    // RF-AGE-16 (F1): actualización periódica; en el Sprint 4 pasa a tiempo real por WebSocket.
-    const t = setInterval(() => void load(), 30_000);
+    // Respaldo por si se corta la conexión en vivo.
+    const t = setInterval(() => void load(), 120_000);
     return () => clearInterval(t);
   }, [load]);
 
-  const step = view === 'week' ? 7 : 1;
+  // RF-AGE-16: los cambios hechos por otras personas aparecen en segundos.
+  const live = useLiveUpdates(() => void load());
+
+  const shiftDate = (dir: -1 | 1) => {
+    if (view === 'month') {
+      const [y, m] = date.split('-').map(Number) as [number, number];
+      return new Date(Date.UTC(y, m - 1 + dir, 1)).toISOString().slice(0, 10);
+    }
+    return addDays(date, dir * (view === 'week' ? 7 : 1));
+  };
 
   async function confirmMove() {
     if (!pendingMove) return;
@@ -123,20 +138,23 @@ function AgendaContent() {
   const dayLabel =
     view === 'week'
       ? `${formatLongDay(range.from).split(',')[1]?.trim() ?? range.from} – ${formatLongDay(range.to).split(',')[1]?.trim() ?? range.to}`
-      : formatLongDay(date);
+      : view === 'month'
+        ? new Date(`${date}T12:00:00Z`).toLocaleDateString('es-BO', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+        : formatLongDay(date);
 
   return (
     <div className="mx-auto max-w-[1600px]">
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="mr-2 text-2xl font-semibold tracking-tight">{can('appointments.read_all') ? 'Agenda' : 'Mi agenda'}</h1>
+        <LiveDot status={live} />
         <div className="flex items-center gap-1">
-          <Button size="sm" variant="secondary" onClick={() => setParam({ date: addDays(date, -step) })} aria-label="Anterior">
+          <Button size="sm" variant="secondary" onClick={() => setParam({ date: shiftDate(-1) })} aria-label="Anterior">
             <ChevronLeft className="size-4" />
           </Button>
           <Button size="sm" variant="secondary" onClick={() => setParam({ date: null })} disabled={date === today}>
             Hoy
           </Button>
-          <Button size="sm" variant="secondary" onClick={() => setParam({ date: addDays(date, step) })} aria-label="Siguiente">
+          <Button size="sm" variant="secondary" onClick={() => setParam({ date: shiftDate(1) })} aria-label="Siguiente">
             <ChevronRight className="size-4" />
           </Button>
         </div>
@@ -150,7 +168,7 @@ function AgendaContent() {
         <span className="text-sm font-medium first-letter:uppercase">{dayLabel}</span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <div className="flex rounded-lg bg-surface p-0.5 ring-1 ring-border" role="tablist">
-            {(['day', 'week', 'list'] as const).map((v) => (
+            {(['day', 'week', 'month', 'list'] as const).map((v) => (
               <button
                 key={v}
                 role="tab"
@@ -158,7 +176,7 @@ function AgendaContent() {
                 onClick={() => setParam({ view: v })}
                 className={`rounded-md px-3 py-1 text-sm ${view === v ? 'bg-primary text-white' : 'text-muted hover:text-text'}`}
               >
-                {v === 'day' ? 'Día' : v === 'week' ? 'Semana' : 'Lista'}
+                {{ day: 'Día', week: 'Semana', month: 'Mes', list: 'Lista' }[v]}
               </button>
             ))}
           </div>
@@ -198,6 +216,8 @@ function AgendaContent() {
           <div className="h-96 animate-pulse rounded-xl bg-surface" />
         ) : view === 'list' ? (
           <ListView data={data} onOpen={setSelected} />
+        ) : view === 'month' ? (
+          <MonthView data={data} month={date.slice(0, 7)} today={today} onDay={(d) => setParam({ date: d, view: 'day' })} />
         ) : view === 'week' ? (
           <WeekView data={data} today={today} onOpen={setSelected} onSlot={(d, t) => canCreate && setPreset({ date: d, time: t, staffId: staffFilter || undefined })} />
         ) : (
@@ -560,6 +580,70 @@ function ListView({ data, onOpen }: { data: CalendarData; onOpen: (a: Appointmen
           </ul>
         </section>
       ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Vista Mes: cantidad de citas y ocupación por día (docs/09-ux-ui.md §15.4)
+// ---------------------------------------------------------------------------
+
+function MonthView({ data, month, today, onDay }: { data: CalendarData; month: string; today: string; onDay: (date: string) => void }) {
+  const days = Array.from({ length: 42 }, (_, i) => addDays(data.from, i));
+  const active = (a: Appointment) => a.status !== 'CANCELADA' && a.status !== 'NO_SHOW';
+  const stats = new Map<string, { count: number; reserved: number; available: number }>();
+  for (const d of days) {
+    const available = Object.values(data.availability[d] ?? {}).reduce((s, x) => s + x.workable.reduce((a, w) => a + toMinutes(w.end) - toMinutes(w.start), 0), 0);
+    stats.set(d, { count: 0, reserved: 0, available });
+  }
+  for (const a of data.appointments.filter(active)) {
+    for (const i of a.items) {
+      const s = stats.get(localDateOf(i.startAt));
+      if (s) s.reserved += i.durationMin;
+    }
+    const s = stats.get(localDateOf(a.startAt));
+    if (s) s.count += 1;
+  }
+  const weekdays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-surface">
+      <div className="grid grid-cols-7 border-b border-border bg-bg/60 text-center text-xs text-muted">
+        {weekdays.map((w) => (
+          <span key={w} className="py-2">
+            {w}
+          </span>
+        ))}
+      </div>
+      <div className="grid grid-cols-7">
+        {days.map((d) => {
+          const s = stats.get(d)!;
+          const occupancy = s.available ? Math.min(100, Math.round((s.reserved / s.available) * 100)) : 0;
+          const outside = !d.startsWith(month);
+          const tone = occupancy >= 80 ? 'bg-danger' : occupancy >= 50 ? 'bg-warning' : 'bg-success';
+          return (
+            <button
+              key={d}
+              onClick={() => onDay(d)}
+              className={`min-h-24 border-r border-b border-border p-2 text-left transition hover:bg-primary/5 ${outside ? 'bg-bg/50 text-muted' : ''}`}
+              aria-label={`${d}: ${s.count} citas, ocupación ${occupancy} %`}
+            >
+              <span className={`inline-grid size-6 place-items-center rounded-full text-xs ${d === today ? 'bg-primary font-semibold text-white' : ''}`}>{Number(d.slice(8))}</span>
+              {s.available > 0 ? (
+                <>
+                  <span className="mt-1 block text-sm font-medium">{s.count ? `${s.count} ${s.count === 1 ? 'cita' : 'citas'}` : '—'}</span>
+                  <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-border">
+                    <span className={`block h-full ${tone}`} style={{ width: `${occupancy}%` }} />
+                  </span>
+                  <span className="text-[11px] text-muted">{occupancy} % ocupado</span>
+                </>
+              ) : (
+                <span className="mt-1 block text-xs text-muted">{s.count ? `${s.count} citas` : 'Cerrado'}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
