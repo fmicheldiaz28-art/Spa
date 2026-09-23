@@ -1,0 +1,27 @@
+{
+  "name": "naturalspa",
+  "private": true,
+  "description": "NaturalSpa Manager — plataforma de gestión para centros de estética y spa",
+  "packageManager": "pnpm@12.5.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "db:start": "node infra/scripts/dev-db.mjs",
+    "db:start:lite": "node infra/scripts/dev-db-lite.mjs",
+    "db:migrate": "pnpm --filter @naturalspa/api db:migrate",
+    "db:seed": "pnpm --filter @naturalspa/api db:seed",
+    "db:reset": "pnpm --filter @naturalspa/api db:reset"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-socket": "^0.2.11",
+    "embedded-postgres": "18.4.0-beta.17",
+    "turbo": "^2.11.3",
+    "typescript": "~6.0.3"
+  }
+}

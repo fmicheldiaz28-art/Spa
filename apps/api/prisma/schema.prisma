@@ -1,0 +1,898 @@
+// NaturalSpa Manager — modelo de datos (docs/04-base-de-datos.md)
+//
+// Las migraciones se escriben en SQL (prisma/migrations) porque incluyen elementos que
+// Prisma no modela: restricciones EXCLUDE, triggers, particiones y vistas. Este schema
+// debe mantenerse alineado con ellas; se usa para generar el cliente tipado.
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  moduleFormat           = "esm"
+  importFileExtension    = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  LOCKED
+  PENDING_VERIFICATION
+
+  @@map("user_status")
+}
+
+enum AppointmentStatus {
+  PENDIENTE
+  CONFIRMADA
+  EN_CURSO
+  COMPLETADA
+  CANCELADA
+  NO_SHOW
+
+  @@map("appointment_status")
+}
+
+enum AppointmentSource {
+  ADMIN
+  ONLINE
+  WHATSAPP
+  TELEFONO
+  WALK_IN
+
+  @@map("appointment_source")
+}
+
+enum CancelledByType {
+  CLIENTE
+  SPA
+  SISTEMA
+
+  @@map("cancelled_by_type")
+}
+
+enum ExceptionType {
+  VACACIONES
+  PERMISO
+  BLOQUEO
+  EXTRA
+
+  @@map("exception_type")
+}
+
+enum ExceptionStatus {
+  SOLICITADA
+  APROBADA
+  RECHAZADA
+  CANCELADA
+
+  @@map("exception_status")
+}
+
+enum PaymentType {
+  COBRO
+  ANTICIPO
+  REEMBOLSO
+
+  @@map("payment_type")
+}
+
+enum PaymentMethod {
+  EFECTIVO
+  QR
+  TRANSFERENCIA
+  TARJETA
+  OTRO
+
+  @@map("payment_method")
+}
+
+enum PaymentStatus {
+  REGISTRADO
+  ANULADO
+
+  @@map("payment_status")
+}
+
+enum NotifChannel {
+  EMAIL
+  WHATSAPP
+  SMS
+  INTERNAL
+
+  @@map("notif_channel")
+}
+
+enum NotifStatus {
+  PROGRAMADA
+  ENVIADA
+  ENTREGADA
+  LEIDA
+  FALLIDA
+  CANCELADA
+
+  @@map("notif_status")
+}
+
+enum JobStatus {
+  PENDIENTE
+  PROCESANDO
+  COMPLETADO
+  FALLIDO
+  EXPIRADO
+
+  @@map("job_status")
+}
+
+// ---------------------------------------------------------------------------
+// Organización
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  legalName String?  @map("legal_name")
+  slug      String   @unique
+  taxId     String?  @map("tax_id")
+  email     String?  @db.Citext
+  phone     String?
+  logoUrl   String?  @map("logo_url")
+  timezone  String   @default("America/La_Paz")
+  currency  String   @default("BOB") @db.Char(3)
+  locale    String   @default("es-BO")
+  settings  Json     @default("{}")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  branches          Branch[]
+  users             User[]
+  roles             Role[]
+  staffProfiles     StaffProfile[]
+  serviceCategories ServiceCategory[]
+  services          Service[]
+  packages          Package[]
+  clients           Client[]
+  appointments      Appointment[]
+
+  @@map("organizations")
+}
+
+model Branch {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  slug           String
+  address        String?
+  city           String?  @default("Santa Cruz de la Sierra")
+  phone          String?
+  latitude       Decimal? @db.Decimal(9, 6)
+  longitude      Decimal? @db.Decimal(9, 6)
+  timezone       String   @default("America/La_Paz")
+  settings       Json     @default("{}")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization  Organization    @relation(fields: [organizationId], references: [id])
+  businessHours BusinessHours[]
+  holidays      Holiday[]
+  resources     Resource[]
+  staffProfiles StaffProfile[]
+  appointments  Appointment[]
+
+  @@unique([organizationId, slug])
+  @@map("branches")
+}
+
+model BusinessHours {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  branchId  String   @map("branch_id") @db.Uuid
+  weekday   Int      @db.SmallInt
+  openTime  DateTime @map("open_time") @db.Time(6)
+  closeTime DateTime @map("close_time") @db.Time(6)
+
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@index([branchId, weekday], map: "ix_business_hours_branch")
+  @@map("business_hours")
+}
+
+model Holiday {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  branchId  String    @map("branch_id") @db.Uuid
+  date      DateTime  @db.Date
+  name      String
+  isClosed  Boolean   @default(true) @map("is_closed")
+  openTime  DateTime? @map("open_time") @db.Time(6)
+  closeTime DateTime? @map("close_time") @db.Time(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  createdBy String?   @map("created_by") @db.Uuid
+
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@unique([branchId, date])
+  @@map("holidays")
+}
+
+model Resource {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  branchId  String   @map("branch_id") @db.Uuid
+  name      String
+  type      String
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  branch           Branch            @relation(fields: [branchId], references: [id])
+  appointmentItems AppointmentItem[]
+
+  @@map("resources")
+}
+
+// ---------------------------------------------------------------------------
+// Identidad y acceso
+// ---------------------------------------------------------------------------
+
+model User {
+  id                 String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String?    @map("organization_id") @db.Uuid
+  email              String     @unique @db.Citext
+  passwordHash       String     @map("password_hash")
+  firstName          String     @map("first_name")
+  lastName           String     @default("") @map("last_name")
+  phoneE164          String?    @map("phone_e164")
+  avatarUrl          String?    @map("avatar_url")
+  status             UserStatus @default(ACTIVE)
+  mustChangePassword Boolean    @default(false) @map("must_change_password")
+  emailVerifiedAt    DateTime?  @map("email_verified_at") @db.Timestamptz
+  failedLoginCount   Int        @default(0) @map("failed_login_count")
+  lockedUntil        DateTime?  @map("locked_until") @db.Timestamptz
+  lastLoginAt        DateTime?  @map("last_login_at") @db.Timestamptz
+  passwordChangedAt  DateTime?  @map("password_changed_at") @db.Timestamptz
+  mfaEnabled         Boolean    @default(false) @map("mfa_enabled")
+  mfaSecretEnc       Bytes?     @map("mfa_secret_enc")
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  createdBy          String?    @map("created_by") @db.Uuid
+  updatedAt          DateTime   @default(now()) @map("updated_at") @db.Timestamptz
+  updatedBy          String?    @map("updated_by") @db.Uuid
+  deletedAt          DateTime?  @map("deleted_at") @db.Timestamptz
+  deletedBy          String?    @map("deleted_by") @db.Uuid
+
+  organization        Organization?        @relation(fields: [organizationId], references: [id])
+  userRoles           UserRole[]           @relation("UserRoleUser")
+  sessions            Session[]
+  passwordResetTokens PasswordResetToken[]
+  staffProfile        StaffProfile?        @relation("StaffUser")
+  client              Client?              @relation("ClientUser")
+
+  @@map("users")
+}
+
+model Role {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  code           String
+  name           String
+  description    String?
+  isSystem       Boolean  @default(false) @map("is_system")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization    Organization?    @relation(fields: [organizationId], references: [id])
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String  @unique
+  module      String
+  description String
+  isSensitive Boolean @default(false) @map("is_sensitive")
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String   @map("role_id") @db.Uuid
+  permissionId String   @map("permission_id") @db.Uuid
+  grantedAt    DateTime @default(now()) @map("granted_at") @db.Timestamptz
+  grantedBy    String?  @map("granted_by") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId    String   @map("user_id") @db.Uuid
+  roleId    String   @map("role_id") @db.Uuid
+  branchId  String?  @map("branch_id") @db.Uuid
+  grantedAt DateTime @default(now()) @map("granted_at") @db.Timestamptz
+  grantedBy String?  @map("granted_by") @db.Uuid
+
+  user User @relation("UserRoleUser", fields: [userId], references: [id])
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model Session {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  familyId         String    @map("family_id") @db.Uuid
+  refreshTokenHash String    @unique @map("refresh_token_hash")
+  userAgent        String?   @map("user_agent")
+  ip               String?   @db.Inet
+  deviceLabel      String?   @map("device_label")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  lastUsedAt       DateTime  @default(now()) @map("last_used_at") @db.Timestamptz
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz
+  revokedReason    String?   @map("revoked_reason")
+  replacedBy       String?   @map("replaced_by") @db.Uuid
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("sessions")
+}
+
+model PasswordResetToken {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  tokenHash   String    @unique @map("token_hash")
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz
+  usedAt      DateTime? @map("used_at") @db.Timestamptz
+  requestedIp String?   @map("requested_ip") @db.Inet
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("password_reset_tokens")
+}
+
+model VerificationCode {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  target     String
+  purpose    String
+  codeHash   String    @map("code_hash")
+  attempts   Int       @default(0)
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("verification_codes")
+}
+
+// ---------------------------------------------------------------------------
+// Personal
+// ---------------------------------------------------------------------------
+
+model StaffProfile {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  branchId         String    @map("branch_id") @db.Uuid
+  userId           String    @unique @map("user_id") @db.Uuid
+  displayName      String    @map("display_name")
+  color            String    @default("#7C9A82")
+  bio              String?
+  photoUrl         String?   @map("photo_url")
+  isBookableOnline Boolean   @default(true) @map("is_bookable_online")
+  sortOrder        Int       @default(0) @map("sort_order")
+  hiredAt          DateTime? @map("hired_at") @db.Date
+  isActive         Boolean   @default(true) @map("is_active")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  createdBy        String?   @map("created_by") @db.Uuid
+  updatedAt        DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+  updatedBy        String?   @map("updated_by") @db.Uuid
+
+  organization       Organization        @relation(fields: [organizationId], references: [id])
+  branch             Branch              @relation(fields: [branchId], references: [id])
+  user               User                @relation("StaffUser", fields: [userId], references: [id])
+  workSchedules      WorkSchedule[]
+  scheduleExceptions ScheduleException[]
+  staffServices      StaffService[]
+  appointmentItems   AppointmentItem[]
+  preferredByClients Client[]            @relation("PreferredStaff")
+
+  @@map("staff_profiles")
+}
+
+model WorkSchedule {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  staffId   String    @map("staff_id") @db.Uuid
+  weekday   Int       @db.SmallInt
+  startTime DateTime  @map("start_time") @db.Time(6)
+  endTime   DateTime  @map("end_time") @db.Time(6)
+  validFrom DateTime  @default(dbgenerated("CURRENT_DATE")) @map("valid_from") @db.Date
+  validTo   DateTime? @map("valid_to") @db.Date
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  createdBy String?   @map("created_by") @db.Uuid
+
+  staff StaffProfile @relation(fields: [staffId], references: [id])
+
+  @@index([staffId, weekday], map: "ix_work_sched_staff")
+  @@map("work_schedules")
+}
+
+model ScheduleException {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String          @map("organization_id") @db.Uuid
+  branchId        String          @map("branch_id") @db.Uuid
+  staffId         String?         @map("staff_id") @db.Uuid
+  type            ExceptionType
+  status          ExceptionStatus @default(APROBADA)
+  startAt         DateTime        @map("start_at") @db.Timestamptz
+  endAt           DateTime        @map("end_at") @db.Timestamptz
+  allDay          Boolean         @default(false) @map("all_day")
+  reason          String?
+  requestedBy     String?         @map("requested_by") @db.Uuid
+  approvedBy      String?         @map("approved_by") @db.Uuid
+  approvedAt      DateTime?       @map("approved_at") @db.Timestamptz
+  rejectionReason String?         @map("rejection_reason")
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz
+  createdBy       String?         @map("created_by") @db.Uuid
+  updatedAt       DateTime        @default(now()) @map("updated_at") @db.Timestamptz
+  updatedBy       String?         @map("updated_by") @db.Uuid
+  deletedAt       DateTime?       @map("deleted_at") @db.Timestamptz
+
+  staff StaffProfile? @relation(fields: [staffId], references: [id])
+
+  @@map("schedule_exceptions")
+}
+
+// ---------------------------------------------------------------------------
+// Catálogo
+// ---------------------------------------------------------------------------
+
+model ServiceCategory {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String  @map("organization_id") @db.Uuid
+  name           String
+  slug           String
+  color          String?
+  icon           String?
+  sortOrder      Int     @default(0) @map("sort_order")
+  isActive       Boolean @default(true) @map("is_active")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  services     Service[]
+
+  @@unique([organizationId, slug])
+  @@map("service_categories")
+}
+
+model Service {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  categoryId       String    @map("category_id") @db.Uuid
+  name             String
+  slug             String
+  description      String?
+  durationMin      Int       @map("duration_min")
+  bufferBeforeMin  Int       @default(0) @map("buffer_before_min")
+  bufferAfterMin   Int       @default(10) @map("buffer_after_min")
+  price            Decimal   @db.Decimal(12, 2)
+  currency         String    @default("BOB") @db.Char(3)
+  resourceType     String?   @map("resource_type")
+  imageUrl         String?   @map("image_url")
+  isActive         Boolean   @default(true) @map("is_active")
+  isOnlineBookable Boolean   @default(true) @map("is_online_bookable")
+  sortOrder        Int       @default(0) @map("sort_order")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  createdBy        String?   @map("created_by") @db.Uuid
+  updatedAt        DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+  updatedBy        String?   @map("updated_by") @db.Uuid
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz
+
+  organization     Organization      @relation(fields: [organizationId], references: [id])
+  category         ServiceCategory   @relation(fields: [categoryId], references: [id])
+  staffServices    StaffService[]
+  packageItems     PackageItem[]
+  appointmentItems AppointmentItem[]
+
+  @@unique([organizationId, slug])
+  @@map("services")
+}
+
+model StaffService {
+  staffId           String   @map("staff_id") @db.Uuid
+  serviceId         String   @map("service_id") @db.Uuid
+  customPrice       Decimal? @map("custom_price") @db.Decimal(12, 2)
+  customDurationMin Int?     @map("custom_duration_min")
+
+  staff   StaffProfile @relation(fields: [staffId], references: [id])
+  service Service      @relation(fields: [serviceId], references: [id])
+
+  @@id([staffId, serviceId])
+  @@index([serviceId], map: "ix_staff_services_service")
+  @@map("staff_services")
+}
+
+model Package {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  name             String
+  slug             String
+  description      String?
+  price            Decimal   @db.Decimal(12, 2)
+  currency         String    @default("BOB") @db.Char(3)
+  imageUrl         String?   @map("image_url")
+  isActive         Boolean   @default(true) @map("is_active")
+  isOnlineBookable Boolean   @default(false) @map("is_online_bookable")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  createdBy        String?   @map("created_by") @db.Uuid
+  updatedAt        DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+  updatedBy        String?   @map("updated_by") @db.Uuid
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  items        PackageItem[]
+  appointments Appointment[]
+
+  @@unique([organizationId, slug])
+  @@map("packages")
+}
+
+model PackageItem {
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  packageId     String @map("package_id") @db.Uuid
+  serviceId     String @map("service_id") @db.Uuid
+  sequence      Int
+  parallelGroup Int    @map("parallel_group")
+
+  package Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  service Service @relation(fields: [serviceId], references: [id])
+
+  @@unique([packageId, sequence])
+  @@map("package_items")
+}
+
+// ---------------------------------------------------------------------------
+// Clientes
+// ---------------------------------------------------------------------------
+
+model Client {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  userId            String?   @unique @map("user_id") @db.Uuid
+  firstName         String    @map("first_name")
+  lastName          String    @default("") @map("last_name")
+  phoneE164         String?   @map("phone_e164")
+  email             String?   @db.Citext
+  birthDate         DateTime? @map("birth_date") @db.Date
+  gender            String?
+  preferences       String?
+  allergies         String?
+  contraindications String?
+  internalNotes     String?   @map("internal_notes")
+  source            String?
+  tags              String[]  @default([])
+  preferredStaffId  String?   @map("preferred_staff_id") @db.Uuid
+  marketingOptIn    Boolean   @default(false) @map("marketing_opt_in")
+  firstVisitAt      DateTime? @map("first_visit_at") @db.Timestamptz
+  lastVisitAt       DateTime? @map("last_visit_at") @db.Timestamptz
+  visitsCount       Int       @default(0) @map("visits_count")
+  noShowCount       Int       @default(0) @map("no_show_count")
+  totalSpent        Decimal   @default(0) @map("total_spent") @db.Decimal(12, 2)
+  isActive          Boolean   @default(true) @map("is_active")
+  mergedIntoId      String?   @map("merged_into_id") @db.Uuid
+  anonymizedAt      DateTime? @map("anonymized_at") @db.Timestamptz
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  createdBy         String?   @map("created_by") @db.Uuid
+  updatedAt         DateTime  @default(now()) @map("updated_at") @db.Timestamptz
+  updatedBy         String?   @map("updated_by") @db.Uuid
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
+  deletedBy         String?   @map("deleted_by") @db.Uuid
+  deleteReason      String?   @map("delete_reason")
+
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  user           User?           @relation("ClientUser", fields: [userId], references: [id])
+  preferredStaff StaffProfile?   @relation("PreferredStaff", fields: [preferredStaffId], references: [id])
+  mergedInto     Client?         @relation("ClientMerge", fields: [mergedIntoId], references: [id])
+  mergedFrom     Client[]        @relation("ClientMerge")
+  consents       ClientConsent[]
+  appointments   Appointment[]
+  payments       Payment[]
+
+  @@map("clients")
+}
+
+model ClientConsent {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clientId      String   @map("client_id") @db.Uuid
+  consentType   String   @map("consent_type")
+  granted       Boolean
+  policyVersion String?  @map("policy_version")
+  channel       String?
+  ip            String?  @db.Inet
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  createdBy     String?  @map("created_by") @db.Uuid
+
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@map("client_consents")
+}
+
+// ---------------------------------------------------------------------------
+// Citas
+// ---------------------------------------------------------------------------
+
+model Appointment {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String            @map("organization_id") @db.Uuid
+  branchId          String            @map("branch_id") @db.Uuid
+  code              String            @unique @default(dbgenerated("next_appointment_code()"))
+  clientId          String            @map("client_id") @db.Uuid
+  packageId         String?           @map("package_id") @db.Uuid
+  status            AppointmentStatus @default(CONFIRMADA)
+  source            AppointmentSource
+  startAt           DateTime          @map("start_at") @db.Timestamptz
+  endAt             DateTime          @map("end_at") @db.Timestamptz
+  subtotal          Decimal           @default(0) @db.Decimal(12, 2)
+  discount          Decimal           @default(0) @db.Decimal(12, 2)
+  total             Decimal           @default(0) @db.Decimal(12, 2)
+  currency          String            @default("BOB") @db.Char(3)
+  clientNotes       String?           @map("client_notes")
+  internalNotes     String?           @map("internal_notes")
+  isOverbooking     Boolean           @default(false) @map("is_overbooking")
+  overbookingReason String?           @map("overbooking_reason")
+  confirmedAt       DateTime?         @map("confirmed_at") @db.Timestamptz
+  checkedInAt       DateTime?         @map("checked_in_at") @db.Timestamptz
+  completedAt       DateTime?         @map("completed_at") @db.Timestamptz
+  cancelledAt       DateTime?         @map("cancelled_at") @db.Timestamptz
+  cancelledBy       String?           @map("cancelled_by") @db.Uuid
+  cancelledByType   CancelledByType?  @map("cancelled_by_type")
+  cancelReason      String?           @map("cancel_reason")
+  noShowAt          DateTime?         @map("no_show_at") @db.Timestamptz
+  rescheduleCount   Int               @default(0) @map("reschedule_count")
+  manageTokenHash   String?           @map("manage_token_hash")
+  version           Int               @default(1)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  createdBy         String?           @map("created_by") @db.Uuid
+  updatedAt         DateTime          @default(now()) @map("updated_at") @db.Timestamptz
+  updatedBy         String?           @map("updated_by") @db.Uuid
+  deletedAt         DateTime?         @map("deleted_at") @db.Timestamptz
+  deletedBy         String?           @map("deleted_by") @db.Uuid
+  deleteReason      String?           @map("delete_reason")
+
+  organization  Organization               @relation(fields: [organizationId], references: [id])
+  branch        Branch                     @relation(fields: [branchId], references: [id])
+  client        Client                     @relation(fields: [clientId], references: [id])
+  package       Package?                   @relation(fields: [packageId], references: [id])
+  items         AppointmentItem[]
+  statusHistory AppointmentStatusHistory[]
+  payments      Payment[]
+
+  @@index([clientId, startAt(sort: Desc)], map: "ix_appt_client")
+  @@index([organizationId, status, startAt], map: "ix_appt_status")
+  @@map("appointments")
+}
+
+model AppointmentItem {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  appointmentId  String   @map("appointment_id") @db.Uuid
+  serviceId      String   @map("service_id") @db.Uuid
+  staffId        String   @map("staff_id") @db.Uuid
+  resourceId     String?  @map("resource_id") @db.Uuid
+  startAt        DateTime @map("start_at") @db.Timestamptz
+  endAt          DateTime @map("end_at") @db.Timestamptz
+  blockedUntil   DateTime @map("blocked_until") @db.Timestamptz
+  serviceName    String   @map("service_name")
+  durationMin    Int      @map("duration_min")
+  price          Decimal  @db.Decimal(12, 2)
+  blocksCalendar Boolean  @default(true) @map("blocks_calendar")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  appointment Appointment  @relation(fields: [appointmentId], references: [id])
+  service     Service      @relation(fields: [serviceId], references: [id])
+  staff       StaffProfile @relation(fields: [staffId], references: [id])
+  resource    Resource?    @relation(fields: [resourceId], references: [id])
+
+  @@index([appointmentId], map: "ix_items_appt")
+  @@map("appointment_items")
+}
+
+model AppointmentStatusHistory {
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  appointmentId String             @map("appointment_id") @db.Uuid
+  fromStatus    AppointmentStatus? @map("from_status")
+  toStatus      AppointmentStatus  @map("to_status")
+  changedBy     String?            @map("changed_by") @db.Uuid
+  actorType     String             @map("actor_type")
+  reason        String?
+  metadata      Json?
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id])
+
+  @@index([appointmentId, createdAt], map: "ix_status_hist_appt")
+  @@map("appointment_status_history")
+}
+
+// ---------------------------------------------------------------------------
+// Cobros
+// ---------------------------------------------------------------------------
+
+model Payment {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String        @map("organization_id") @db.Uuid
+  branchId         String        @map("branch_id") @db.Uuid
+  appointmentId    String?       @map("appointment_id") @db.Uuid
+  clientId         String?       @map("client_id") @db.Uuid
+  type             PaymentType   @default(COBRO)
+  method           PaymentMethod
+  amount           Decimal       @db.Decimal(12, 2)
+  currency         String        @default("BOB") @db.Char(3)
+  reference        String?
+  status           PaymentStatus @default(REGISTRADO)
+  notes            String?
+  receivedBy       String        @map("received_by") @db.Uuid
+  paidAt           DateTime      @default(now()) @map("paid_at") @db.Timestamptz
+  voidedAt         DateTime?     @map("voided_at") @db.Timestamptz
+  voidedBy         String?       @map("voided_by") @db.Uuid
+  voidReason       String?       @map("void_reason")
+  externalProvider String?       @map("external_provider")
+  externalId       String?       @map("external_id")
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
+  client      Client?      @relation(fields: [clientId], references: [id])
+
+  @@index([appointmentId], map: "ix_payments_appt")
+  @@map("payments")
+}
+
+model CashClosure {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  branchId       String   @map("branch_id") @db.Uuid
+  businessDate   DateTime @map("business_date") @db.Date
+  expectedTotals Json     @map("expected_totals")
+  countedTotals  Json     @map("counted_totals")
+  difference     Decimal  @db.Decimal(12, 2)
+  notes          String?
+  closedBy       String   @map("closed_by") @db.Uuid
+  closedAt       DateTime @default(now()) @map("closed_at") @db.Timestamptz
+
+  @@unique([branchId, businessDate])
+  @@map("cash_closures")
+}
+
+// ---------------------------------------------------------------------------
+// Notificaciones y eventos
+// ---------------------------------------------------------------------------
+
+model NotificationTemplate {
+  id                   String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId       String?      @map("organization_id") @db.Uuid
+  code                 String
+  channel              NotifChannel
+  locale               String       @default("es-BO")
+  subject              String?
+  body                 String
+  providerTemplateName String?      @map("provider_template_name")
+  isActive             Boolean      @default(true) @map("is_active")
+  version              Int          @default(1)
+  updatedAt            DateTime     @default(now()) @map("updated_at") @db.Timestamptz
+
+  @@map("notification_templates")
+}
+
+model Notification {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String       @map("organization_id") @db.Uuid
+  channel           NotifChannel
+  templateCode      String       @map("template_code")
+  recipientUserId   String?      @map("recipient_user_id") @db.Uuid
+  recipientClientId String?      @map("recipient_client_id") @db.Uuid
+  recipientAddress  String?      @map("recipient_address")
+  appointmentId     String?      @map("appointment_id") @db.Uuid
+  payload           Json         @default("{}")
+  status            NotifStatus  @default(PROGRAMADA)
+  scheduledAt       DateTime     @default(now()) @map("scheduled_at") @db.Timestamptz
+  sentAt            DateTime?    @map("sent_at") @db.Timestamptz
+  deliveredAt       DateTime?    @map("delivered_at") @db.Timestamptz
+  readAt            DateTime?    @map("read_at") @db.Timestamptz
+  attempts          Int          @default(0)
+  lastError         String?      @map("last_error")
+  providerMessageId String?      @map("provider_message_id")
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("notifications")
+}
+
+model OutboxEvent {
+  id             BigInt    @id @default(autoincrement())
+  organizationId String    @map("organization_id") @db.Uuid
+  aggregateType  String    @map("aggregate_type")
+  aggregateId    String    @map("aggregate_id") @db.Uuid
+  eventType      String    @map("event_type")
+  payload        Json
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  publishedAt    DateTime? @map("published_at") @db.Timestamptz
+  attempts       Int       @default(0)
+
+  @@map("outbox_events")
+}
+
+model ExportJob {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  requestedBy    String    @map("requested_by") @db.Uuid
+  exportType     String    @map("export_type")
+  filters        Json      @default("{}")
+  reason         String
+  format         String
+  status         JobStatus @default(PENDIENTE)
+  rowCount       Int?      @map("row_count")
+  fileKey        String?   @map("file_key")
+  expiresAt      DateTime? @map("expires_at") @db.Timestamptz
+  downloadedAt   DateTime? @map("downloaded_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("export_jobs")
+}
+
+model ImportJob {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  requestedBy    String    @map("requested_by") @db.Uuid
+  importType     String    @map("import_type")
+  status         JobStatus @default(PENDIENTE)
+  totalRows      Int?      @map("total_rows")
+  importedRows   Int?      @map("imported_rows")
+  duplicateRows  Int?      @map("duplicate_rows")
+  errorRows      Int?      @map("error_rows")
+  report         Json?
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  finishedAt     DateTime? @map("finished_at") @db.Timestamptz
+
+  @@map("import_jobs")
+}
+
+// ---------------------------------------------------------------------------
+// Auditoría (append-only, particionada por mes)
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id             BigInt   @default(autoincrement())
+  occurredAt     DateTime @default(now()) @map("occurred_at") @db.Timestamptz
+  organizationId String?  @map("organization_id") @db.Uuid
+  branchId       String?  @map("branch_id") @db.Uuid
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  actorType      String   @map("actor_type")
+  actorRole      String?  @map("actor_role")
+  actorName      String?  @map("actor_name")
+  action         String
+  module         String
+  entityType     String?  @map("entity_type")
+  entityId       String?  @map("entity_id") @db.Uuid
+  entityLabel    String?  @map("entity_label")
+  oldValues      Json?    @map("old_values")
+  newValues      Json?    @map("new_values")
+  changedFields  String[] @map("changed_fields")
+  reason         String?
+  ip             String?  @db.Inet
+  userAgent      String?  @map("user_agent")
+  requestId      String?  @map("request_id")
+  sessionId      String?  @map("session_id") @db.Uuid
+  prevHash       Bytes?   @map("prev_hash")
+  hash           Bytes?
+
+  @@id([id, occurredAt])
+  @@map("audit_logs")
+}

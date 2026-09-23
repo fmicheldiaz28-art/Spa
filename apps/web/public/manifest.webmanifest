@@ -1,0 +1,13 @@
+{
+  "name": "NaturalSpa",
+  "short_name": "NaturalSpa",
+  "description": "Agenda, clientes y reservas de NaturalSpa",
+  "start_url": "/app",
+  "display": "standalone",
+  "background_color": "#f7f8f6",
+  "theme_color": "#1f2a24",
+  "lang": "es-BO",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+/* Design tokens (docs/09-ux-ui.md — Sistema de diseño) */
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --color-sidebar: #1f2a24;
+  --color-sidebar-fg: #c9d6ce;
+  --color-sidebar-active: #2f4238;
+  --color-sidebar-accent: #8fb996;
+
+  --color-bg: #f7f8f6;
+  --color-surface: #ffffff;
+  --color-border: #e4e8e3;
+  --color-text: #1b221e;
+  --color-muted: #6b7770;
+
+  --color-primary: #4f7a5a;
+  --color-primary-hover: #3f6549;
+  --color-accent: #c9a27e;
+  --color-success: #2e9e6a;
+  --color-warning: #d9912b;
+  --color-danger: #d2493f;
+  --color-info: #3c7dd9;
+}
+
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+body {
+  font-feature-settings: "cv11", "ss01";
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
