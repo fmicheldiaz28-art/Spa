@@ -1,13 +1,23 @@
 {
+  "id": "/app",
   "name": "NaturalSpa",
   "short_name": "NaturalSpa",
   "description": "Agenda, clientes y reservas de NaturalSpa",
   "start_url": "/app",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#f7f8f6",
   "theme_color": "#1f2a24",
   "lang": "es-BO",
   "icons": [
-    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Mi día", "url": "/app/mi-dia", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Agenda", "url": "/app/agenda", "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }] }
   ]
 }

@@ -106,6 +106,11 @@ export function AppointmentSheet({ appointment, onClose, onChanged }: { appointm
           {a.isOverbooking && <Badge tone="warning">Sobre-turno</Badge>}
           {a.rescheduleCount > 0 && <Badge>Reagendada ×{a.rescheduleCount}</Badge>}
           {a.clientConfirmedAt && <Badge tone="success">✓ La clienta confirmó asistencia</Badge>}
+          {a.client.frequentNoShow && (
+            <Badge tone="danger">
+              ⚠ Faltó {a.client.noShows} veces antes{!a.clientConfirmedAt && ['CONFIRMADA', 'PENDIENTE'].includes(a.status) ? ': confírmale por teléfono' : ''}
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-start gap-3">

@@ -12,7 +12,7 @@ interface SettingsData {
   settings: {
     booking: { enabled: boolean; slot_interval_min: number; min_lead_time_min: number; max_advance_days: number; auto_confirm: boolean; max_active_bookings_per_client: number; hold_ttl_sec: number };
     cancellation: { client_can_cancel_until_hours: number; client_can_reschedule_until_hours: number; max_reschedules_per_appointment: number };
-    no_show: { grace_minutes: number };
+    no_show: { grace_minutes: number; flag_client_after_count: number };
     privacy: { staff_client_visibility_months: number };
     reminders: { enabled: boolean; hours_before: number[]; channels: string[] };
   };
@@ -157,6 +157,9 @@ export default function SettingsPage() {
         </Field>
         <Field label="Tolerancia para marcar no-show (minutos)" htmlFor="grace">
           <Input id="grace" type="number" min={0} max={120} value={s.no_show.grace_minutes} onChange={(e) => setSetting('no_show', 'grace_minutes', num(e.target.value))} />
+        </Field>
+        <Field label="Marcar clienta tras (no-shows)" htmlFor="flag" hint="La agenda te avisa que conviene confirmarle por teléfono.">
+          <Input id="flag" type="number" min={1} max={20} value={s.no_show.flag_client_after_count} onChange={(e) => setSetting('no_show', 'flag_client_after_count', num(e.target.value))} />
         </Field>
       </Section>
 

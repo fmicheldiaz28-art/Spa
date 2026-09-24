@@ -10,7 +10,7 @@ import { AuditService } from '../audit/audit.service.js';
 export const SETTINGS_DEFAULTS = {
   booking: { enabled: true, slot_interval_min: 15, min_lead_time_min: 120, max_advance_days: 60, auto_confirm: true, max_active_bookings_per_client: 3, hold_ttl_sec: 600 },
   cancellation: { client_can_cancel_until_hours: 12, client_can_reschedule_until_hours: 12, max_reschedules_per_appointment: 2 },
-  no_show: { grace_minutes: 15 },
+  no_show: { grace_minutes: 15, flag_client_after_count: 2 },
   privacy: { staff_client_visibility_months: 12 },
   // Recordatorios: función de la Fase 2, se activa en Configuración (feature flag, docs/12 §4).
   reminders: { enabled: false, hours_before: [24, 2], channels: ['EMAIL'] as string[] },

@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, CheckCheck, ChevronLeft, ChevronRight, Globe, Plus } from 'lucide-react';
+import { AlertTriangle, CheckCheck, ChevronLeft, ChevronRight, Globe, Plus, UserX } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { AppointmentSheet } from '@/components/agenda/appointment-sheet';
@@ -465,6 +465,7 @@ function AppointmentCard({
         {(a.client.allergies || a.client.contraindications) && <AlertTriangle className="size-3 shrink-0 text-danger" aria-label="Alergias" />}
         {a.source === 'ONLINE' && <Globe className="size-3 shrink-0 text-info" aria-label="Reserva online" />}
         {a.clientConfirmedAt && <CheckCheck className="size-3 shrink-0 text-success" aria-label="La clienta confirmó asistencia" />}
+        {a.client.frequentNoShow && !a.clientConfirmedAt && <UserX className="size-3 shrink-0 text-danger" aria-label="Faltó varias veces: confirmar" />}
       </span>
       {height > 34 && (
         <span className="block truncate text-muted">

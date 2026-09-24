@@ -38,7 +38,7 @@ export interface CreateAppointmentInput {
 const NONE = '00000000-0000-0000-0000-000000000000';
 
 const include = {
-  client: { select: { id: true, firstName: true, lastName: true, allergies: true, contraindications: true, preferences: true } },
+  client: { select: { id: true, firstName: true, lastName: true, allergies: true, contraindications: true, preferences: true, noShowCount: true } },
   items: {
     include: { staff: { select: { id: true, displayName: true, color: true } } },
     orderBy: { startAt: 'asc' },
@@ -48,8 +48,10 @@ const include = {
 type AppointmentRecord = Prisma.AppointmentGetPayload<{ include: typeof include }>;
 
 interface Settings {
-  no_show?: { grace_minutes?: number };
+  no_show?: { grace_minutes?: number; flag_client_after_count?: number };
 }
+
+const DEFAULT_NO_SHOW_FLAG = 2;
 
 /** Error de la restricción EXCLUDE (23P01): otra cita ocupó el horario entre la validación y el guardado. */
 function isOverlapViolation(err: unknown): boolean {
@@ -93,6 +95,8 @@ export class AppointmentsService {
         allergies: a.client.allergies,
         contraindications: a.client.contraindications,
         preferences: a.client.preferences,
+        // Aviso operativo para administración: clienta con ausencias repetidas (docs/01 P5).
+        ...(full && { noShows: a.client.noShowCount, frequentNoShow: a.client.noShowCount >= (this.noShowFlag.get(a.organizationId) ?? DEFAULT_NO_SHOW_FLAG) }),
       },
       items: items.map((i) => ({
         id: i.id,
@@ -118,6 +122,14 @@ export class AppointmentsService {
     };
   }
 
+  /** Umbral de no-show por organización (configuración), en memoria para que dto() siga siendo síncrono. */
+  private readonly noShowFlag = new Map<string, number>();
+
+  private async loadNoShowFlag(organizationId: string) {
+    const org = await this.prisma.organization.findUnique({ where: { id: organizationId }, select: { settings: true } });
+    this.noShowFlag.set(organizationId, (org?.settings as Settings | null)?.no_show?.flag_client_after_count ?? DEFAULT_NO_SHOW_FLAG);
+  }
+
   async list(user: AuthUser, organizationId: string, query: { from: Date; to: Date; staffId?: string; status?: AppointmentStatus[]; clientId?: string }) {
     const rows = await this.prisma.appointment.findMany({
       where: {
@@ -133,6 +145,7 @@ export class AppointmentsService {
       orderBy: { startAt: 'asc' },
       take: 1000,
     });
+    await this.loadNoShowFlag(organizationId);
     return rows.map((a) => this.dto(user, a));
   }
 
@@ -165,7 +178,9 @@ export class AppointmentsService {
   }
 
   async get(user: AuthUser, id: string) {
-    return this.dto(user, await this.find(user, id));
+    const a = await this.find(user, id);
+    await this.loadNoShowFlag(a.organizationId);
+    return this.dto(user, a);
   }
 
   /** Línea de tiempo de la cita. La empleada ve los hechos, sin datos de otras colaboradoras. */

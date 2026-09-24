@@ -21,7 +21,7 @@ export interface Appointment {
   source: 'ADMIN' | 'ONLINE' | 'WHATSAPP' | 'TELEFONO' | 'WALK_IN';
   startAt: string;
   endAt: string;
-  client: { id: string; name: string; allergies: string | null; contraindications: string | null; preferences: string | null };
+  client: { id: string; name: string; allergies: string | null; contraindications: string | null; preferences: string | null; noShows?: number; frequentNoShow?: boolean };
   items: AppointmentItem[];
   total?: string;
   internalNotes?: string | null;

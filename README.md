@@ -76,6 +76,9 @@ Abre http://localhost:3000.
 | Reservas online 24/7, verificación por código, gestión por enlace, "Mis reservas" | ✅ | `/reservar`, `/mi-cuenta` |
 | Configuración del negocio y políticas | ✅ | `/app/configuracion` |
 | Recordatorios por email (24 h y 2 h, configurables) con confirmación de asistencia, reagendar o cancelar en un clic; adjunto .ics en la confirmación | ✅ (adelantado de Fase 2; se activa en Configuración) | `/app/configuracion` |
+| Aviso de clientas con no-show repetido (umbral configurable) en agenda y ficha de la cita | ✅ | `/app/agenda`, `/app/configuracion` |
+| App instalable (PWA: manifest, íconos, service worker con página sin conexión) | ✅ (el service worker se activa solo en producción) | — |
+| Cabeceras de seguridad en la web (CSP, HSTS, X-Frame-Options, Referrer-Policy, Permissions-Policy) | ✅ | `apps/web/next.config.ts` |
 | Recordatorios por WhatsApp, MFA, RLS, Redis | ⏳ Fase 2 (WhatsApp requiere plantilla aprobada por Meta) | docs/10 §17 |
 
 **Diferencia con el documento de diseño:** las clientas no usan contraseña. Se identifican con un código enviado a su email y gestionan su reserva con el enlace privado del email de confirmación. Es menos fricción para ellas y evita guardar contraseñas débiles.
@@ -92,5 +95,6 @@ Abre http://localhost:3000.
 - **Doble reserva imposible en tres capas:** motor de disponibilidad (función pura con pruebas), retención de 10 min del horario en reservas online y restricción `EXCLUDE` en PostgreSQL. Las retenciones y la idempotencia viven en memoria (una instancia); al escalar pasan a Redis con la misma interfaz.
 - **Tiempo real con Server-Sent Events** (alternativa prevista en docs §8) en lugar de Socket.IO: sin dependencias nuevas y suficiente porque el flujo es solo servidor → navegador. Los eventos llevan únicamente identificadores; cada pantalla vuelve a pedir los datos con sus permisos. El stream se cierra al vencer el access token y el cliente se reconecta. Bus en memoria (una instancia); al escalar, Redis pub/sub.
 - **Recordatorios sin Redis:** la tabla `notifications` hace de cola. Un proceso del API (cada `REMINDERS_INTERVAL_SEC`, 60 s) programa una fila por cita, aviso y horario (índice único → idempotente aunque haya varias instancias) y la envía revalidando que la cita siga activa y en el mismo horario; reagendar genera avisos nuevos y borra la confirmación anterior. El enlace del email es un JWT firmado que vale solo para esa cita y vence al terminar.
+- **PWA sin datos en caché:** el service worker solo guarda archivos estáticos con hash y la página sin conexión; nunca respuestas del API ni páginas con datos de clientas.
 - **Pendiente de verificar con PostgreSQL real:** la prueba de concurrencia (10 reservas simultáneas del mismo horario) se ejecutó sobre PGlite. La base respondió bien (una sola cita creada), pero PGlite se desincroniza con transacciones concurrentes que fallan. Hay que repetirla con Docker o `db:start`.
 - **JWT firmado con HS256** en esta etapa; el paso a EdDSA con rotación de claves (docs §19.2) está previsto para el hardening del Sprint 6.
