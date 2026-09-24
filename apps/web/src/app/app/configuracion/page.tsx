@@ -14,6 +14,7 @@ interface SettingsData {
     cancellation: { client_can_cancel_until_hours: number; client_can_reschedule_until_hours: number; max_reschedules_per_appointment: number };
     no_show: { grace_minutes: number };
     privacy: { staff_client_visibility_months: number };
+    reminders: { enabled: boolean; hours_before: number[]; channels: string[] };
   };
 }
 
@@ -75,6 +76,11 @@ export default function SettingsPage() {
   }
 
   const num = (v: string) => (v === '' ? 0 : Number(v));
+  const setReminderHours = (index: number, value: number) => {
+    const hours = [s.reminders.hours_before[0] ?? 24, s.reminders.hours_before[1] ?? 0];
+    hours[index] = value;
+    setSetting('reminders', 'hours_before', hours.filter((h) => h > 0));
+  };
 
   return (
     <form onSubmit={save} className="mx-auto max-w-4xl space-y-5">
@@ -151,6 +157,19 @@ export default function SettingsPage() {
         </Field>
         <Field label="Tolerancia para marcar no-show (minutos)" htmlFor="grace">
           <Input id="grace" type="number" min={0} max={120} value={s.no_show.grace_minutes} onChange={(e) => setSetting('no_show', 'grace_minutes', num(e.target.value))} />
+        </Field>
+      </Section>
+
+      <Section title="Recordatorios automáticos" description="Email a la clienta antes de su cita, con botón para confirmar asistencia, reagendar o cancelar.">
+        <label className="flex items-center gap-2 text-sm sm:col-span-2">
+          <input type="checkbox" checked={s.reminders.enabled} onChange={(e) => setSetting('reminders', 'enabled', e.target.checked)} className="size-4 accent-[var(--color-primary)]" />
+          Enviar recordatorios (solo a clientas con email)
+        </label>
+        <Field label="Primer aviso (horas antes)" htmlFor="rem1">
+          <Input id="rem1" type="number" min={1} max={72} disabled={!s.reminders.enabled} value={s.reminders.hours_before[0] ?? 24} onChange={(e) => setReminderHours(0, num(e.target.value))} />
+        </Field>
+        <Field label="Segundo aviso (horas antes)" htmlFor="rem2" hint="0 = sin segundo aviso.">
+          <Input id="rem2" type="number" min={0} max={12} disabled={!s.reminders.enabled} value={s.reminders.hours_before[1] ?? 0} onChange={(e) => setReminderHours(1, num(e.target.value))} />
         </Field>
       </Section>
 

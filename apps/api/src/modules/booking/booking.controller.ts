@@ -13,7 +13,11 @@ const staffParam = z
   .optional()
   .transform((v) => (v === 'any' ? undefined : v));
 const instant = z.iso.datetime({ offset: true }).transform((v) => new Date(v));
-const manageToken = z.string().regex(/^[\w-]{20,64}$/);
+// Token opaco del email de confirmación o enlace firmado (JWT) de los recordatorios.
+const manageToken = z
+  .string()
+  .max(1000)
+  .regex(/^[\w-]{20,64}$|^[\w-]+\.[\w-]+\.[\w-]+$/);
 
 const holdSchema = z.object({ serviceId: z.uuid(), staffId: staffParam, startAt: instant });
 const confirmSchema = z.object({
@@ -106,6 +110,12 @@ export class BookingController {
     return this.booking.manage(token);
   }
 
+  @Post('booking/manage/:token/confirm-attendance')
+  @HttpCode(200)
+  confirmAttendance(@Param('token', new ZodValidationPipe(manageToken)) token: string) {
+    return this.booking.confirmAttendance({ manageToken: token });
+  }
+
   @Post('booking/manage/:token/cancel')
   @HttpCode(200)
   cancelByLink(@Param('token', new ZodValidationPipe(manageToken)) token: string) {
@@ -127,6 +137,12 @@ export class BookingController {
   @HttpCode(200)
   cancelMine(@Headers('authorization') auth: string | undefined, @Param('id', ParseUUIDPipe) id: string) {
     return this.booking.cancel({ clientToken: bearer(auth), appointmentId: id });
+  }
+
+  @Post('me/appointments/:id/confirm-attendance')
+  @HttpCode(200)
+  confirmMine(@Headers('authorization') auth: string | undefined, @Param('id', ParseUUIDPipe) id: string) {
+    return this.booking.confirmAttendance({ clientToken: bearer(auth), appointmentId: id });
   }
 
   @Post('me/appointments/:id/reschedule')

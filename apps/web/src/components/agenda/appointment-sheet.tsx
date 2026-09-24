@@ -34,6 +34,7 @@ const HISTORY_LABELS: Record<string, string> = {
   CREATE: 'Creada',
   OVERBOOKING: 'Creada como sobre-turno',
   RESCHEDULE: 'Reagendada',
+  CONFIRM_ATTENDANCE: 'Asistencia confirmada por la clienta',
   STATUS_CHANGE: 'Cambio de estado',
   CANCEL: 'Cancelada',
   REVERT_STATUS: 'Estado corregido',
@@ -104,6 +105,7 @@ export function AppointmentSheet({ appointment, onClose, onChanged }: { appointm
           </Badge>
           {a.isOverbooking && <Badge tone="warning">Sobre-turno</Badge>}
           {a.rescheduleCount > 0 && <Badge>Reagendada ×{a.rescheduleCount}</Badge>}
+          {a.clientConfirmedAt && <Badge tone="success">✓ La clienta confirmó asistencia</Badge>}
         </div>
 
         <div className="flex items-start gap-3">

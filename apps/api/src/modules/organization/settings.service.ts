@@ -12,6 +12,8 @@ export const SETTINGS_DEFAULTS = {
   cancellation: { client_can_cancel_until_hours: 12, client_can_reschedule_until_hours: 12, max_reschedules_per_appointment: 2 },
   no_show: { grace_minutes: 15 },
   privacy: { staff_client_visibility_months: 12 },
+  // Recordatorios: función de la Fase 2, se activa en Configuración (feature flag, docs/12 §4).
+  reminders: { enabled: false, hours_before: [24, 2], channels: ['EMAIL'] as string[] },
 };
 
 type Settings = typeof SETTINGS_DEFAULTS;
@@ -20,6 +22,11 @@ export interface SettingsPatch {
   organization?: { name?: string; phone?: string | null; email?: string | null };
   branch?: { address?: string | null; city?: string | null; phone?: string | null };
   settings?: { [K in keyof Settings]?: Partial<Settings[K]> };
+}
+
+/** Políticas vigentes: valores guardados sobre los valores por defecto. */
+export function resolveSettings(stored: unknown): Settings {
+  return merge(SETTINGS_DEFAULTS, (stored ?? {}) as Record<string, unknown>);
 }
 
 function merge(base: Settings, stored: Record<string, unknown>): Settings {

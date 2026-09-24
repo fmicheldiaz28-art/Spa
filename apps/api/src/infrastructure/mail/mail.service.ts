@@ -7,6 +7,7 @@ export interface Mail {
   subject: string;
   text: string;
   html?: string;
+  attachments?: { filename: string; content: string; contentType: string }[];
 }
 
 /**
@@ -21,7 +22,7 @@ export class MailService {
   async send(mail: Mail): Promise<void> {
     if (!this.transport) {
       if (env.NODE_ENV === 'production') throw new Error('SMTP_URL no está configurado');
-      this.logger.log(`[email simulado] Para: ${mail.to} · ${mail.subject}\n${mail.text}`);
+      this.logger.log(`[email simulado] Para: ${mail.to} · ${mail.subject}\n${mail.text}${mail.attachments?.length ? `\n[adjuntos: ${mail.attachments.map((a) => a.filename).join(', ')}]` : ''}`);
       return;
     }
     await this.transport.sendMail({ from: env.MAIL_FROM, ...mail });

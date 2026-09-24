@@ -31,6 +31,7 @@ export interface Appointment {
   cancelReason: string | null;
   cancelledByType: 'CLIENTE' | 'SPA' | 'SISTEMA' | null;
   rescheduleCount: number;
+  clientConfirmedAt: string | null;
   actions: Action[];
   version: number;
   deleted: boolean;

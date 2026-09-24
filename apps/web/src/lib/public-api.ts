@@ -50,6 +50,8 @@ export interface PublicAppointment {
   staff: { id: string; name: string };
   total: string;
   client: { firstName: string; lastName: string; email: string | null };
+  clientConfirmedAt: string | null;
+  canConfirm: boolean;
   canCancel: boolean;
   canReschedule: boolean;
   cancelUntilHours: number;

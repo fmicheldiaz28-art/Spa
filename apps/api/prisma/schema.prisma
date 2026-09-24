@@ -650,6 +650,7 @@ model Appointment {
   isOverbooking     Boolean           @default(false) @map("is_overbooking")
   overbookingReason String?           @map("overbooking_reason")
   confirmedAt       DateTime?         @map("confirmed_at") @db.Timestamptz
+  clientConfirmedAt DateTime?         @map("client_confirmed_at") @db.Timestamptz
   checkedInAt       DateTime?         @map("checked_in_at") @db.Timestamptz
   completedAt       DateTime?         @map("completed_at") @db.Timestamptz
   cancelledAt       DateTime?         @map("cancelled_at") @db.Timestamptz

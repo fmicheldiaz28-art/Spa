@@ -12,6 +12,8 @@ const schema = z.object({
   WEB_ORIGIN: z.string().default('http://localhost:3000'),
   SMTP_URL: z.string().optional(),
   MAIL_FROM: z.string().default('NaturalSpa <no-responder@naturalspa.bo>'),
+  // Cada cuánto revisa y envía recordatorios; 0 los apaga en esta instancia.
+  REMINDERS_INTERVAL_SEC: z.coerce.number().int().min(0).default(60),
 });
 
 export const env = schema.parse(process.env);

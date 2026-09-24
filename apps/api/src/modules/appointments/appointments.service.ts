@@ -111,6 +111,7 @@ export class AppointmentsService {
       cancelReason: a.cancelReason,
       cancelledByType: a.cancelledByType,
       rescheduleCount: a.rescheduleCount,
+      clientConfirmedAt: a.clientConfirmedAt?.toISOString() ?? null,
       actions: availableActions(a.status as AppointmentStatus),
       version: a.version,
       deleted: !!a.deletedAt,
@@ -328,11 +329,14 @@ export class AppointmentsService {
           });
         }
         const items = await tx.appointmentItem.findMany({ where: { appointmentId: id } });
+        const startAt = new Date(Math.min(...items.map((i) => i.startAt.getTime())));
         const updated = await tx.appointment.update({
           where: { id },
           data: {
-            startAt: new Date(Math.min(...items.map((i) => i.startAt.getTime()))),
+            startAt,
             endAt: new Date(Math.max(...items.map((i) => i.endAt.getTime()))),
+            // La confirmación de la clienta era para el horario anterior.
+            ...(startAt.getTime() !== before.startAt.getTime() && { clientConfirmedAt: null }),
             rescheduleCount: { increment: 1 },
             version: { increment: 1 },
             updatedBy: user.id,

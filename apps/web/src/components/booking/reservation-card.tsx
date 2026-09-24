@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarPlus } from 'lucide-react';
+import { CalendarPlus, CheckCircle2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { MonthCalendar } from '@/components/booking/month-calendar';
 import { Alert, Badge, Button } from '@/components/ui';
@@ -43,6 +43,18 @@ export function ReservationCard({
     }
   }
 
+  async function confirmAttendance() {
+    setBusy(true);
+    setError(null);
+    try {
+      onChanged(await publicApi<PublicAppointment>(`${actionBase}/confirm-attendance`, { method: 'POST', clientToken }));
+    } catch (err) {
+      setError(err instanceof ApiError ? [err.problem.title, err.problem.detail].filter(Boolean).join('. ') : 'No se pudo confirmar');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const upcoming = new Date(a.startAt) > new Date();
   const st = STATUS[a.status];
 
@@ -65,6 +77,20 @@ export function ReservationCard({
       </div>
 
       {error && <div className="mt-3"><Alert>{error}</Alert></div>}
+
+      {mode === 'view' && a.clientConfirmedAt && upcoming && (
+        <p className="mt-4 flex items-center gap-2 rounded-xl bg-primary/10 px-3 py-2 text-sm text-primary">
+          <CheckCircle2 className="size-4" /> Confirmaste tu asistencia. ¡Te esperamos!
+        </p>
+      )}
+      {mode === 'view' && !a.clientConfirmedAt && a.canConfirm && (
+        <div className="mt-4 rounded-xl border border-primary/30 bg-primary/5 p-4">
+          <p className="text-sm">¿Vienes a tu cita? Confírmanos para guardarte el horario.</p>
+          <Button className="mt-3 w-full" disabled={busy} onClick={() => void confirmAttendance()}>
+            <CheckCircle2 className="size-4" /> Sí, confirmo mi asistencia
+          </Button>
+        </div>
+      )}
 
       {mode === 'view' && upcoming && (a.status === 'CONFIRMADA' || a.status === 'PENDIENTE') && (
         <div className="mt-4 flex flex-wrap gap-2">

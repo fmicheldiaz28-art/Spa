@@ -3,10 +3,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { AppointmentStatus } from '@naturalspa/shared';
 import type { AuthUser } from '../../common/auth-user.js';
 import { AppException, Errors } from '../../common/errors.js';
+import { buildIcs } from '../../common/ics.js';
 import { lastNameInitial, maskEmail } from '../../common/mask.js';
 import { env } from '../../config/env.js';
 import type { Prisma } from '../../generated/prisma/client.js';
-import { MailService } from '../../infrastructure/mail/mail.service.js';
+import { type Mail, MailService } from '../../infrastructure/mail/mail.service.js';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
 import { nextStatus } from '../appointments/domain/appointment-state.js';
 import { AuditService } from '../audit/audit.service.js';
@@ -82,10 +83,11 @@ export class BookingService {
     private readonly events: EventsService,
   ) {}
 
-  private async ctx() {
+  /** `requireBooking = false` para la gestión de citas ya existentes (siguen funcionando con reservas desactivadas). */
+  private async ctx(requireBooking = true) {
     const c = await this.availability.context(PUBLIC_ACTOR);
     const settings = c.settings as Settings;
-    if (settings.booking?.enabled === false) throw new AppException(503, 'BOOKING_DISABLED', 'Las reservas online están desactivadas temporalmente');
+    if (requireBooking && settings.booking?.enabled === false) throw new AppException(503, 'BOOKING_DISABLED', 'Las reservas online están desactivadas temporalmente');
     return { ...c, settings };
   }
 
@@ -326,6 +328,20 @@ export class BookingService {
       `Total: Bs ${price.toFixed(2)} (pago en el spa)`,
       '',
       `Para ver, reagendar o cancelar tu reserva: ${manageUrl}`,
+    ], [
+      {
+        filename: 'reserva-naturalspa.ics',
+        contentType: 'text/calendar; charset=utf-8; method=PUBLISH',
+        content: buildIcs({
+          uid: `${appointment.id}@naturalspa`,
+          start: hold.startAt,
+          end: endAt,
+          summary: `${service.name} · NaturalSpa`,
+          description: `Con ${staffService.staff.displayName}. Código ${appointment.code}.`,
+          location: [branch.address, branch.city].filter(Boolean).join(', ') || undefined,
+          url: manageUrl,
+        }),
+      },
     ]);
 
     return { ...this.publicDto(appointment, branch.timezone, settings), manageToken };
@@ -333,9 +349,15 @@ export class BookingService {
 
   // ------------------------------------------------------------------ autogestión
 
+  /** Acepta el enlace del email de confirmación (token opaco) o el firmado de los recordatorios (JWT). */
   private async byManageToken(token: string) {
-    const { organizationId } = await this.ctx();
-    const a = await this.prisma.appointment.findFirst({ where: { organizationId, manageTokenHash: sha(token), deletedAt: null }, include });
+    const { organizationId } = await this.ctx(false);
+    const link = token.includes('.') ? await this.tokens.verifyAppointmentLink(token) : null;
+    if (token.includes('.') && (!link || link.organizationId !== organizationId)) throw Errors.notFound();
+    const a = await this.prisma.appointment.findFirst({
+      where: { organizationId, deletedAt: null, ...(link ? { id: link.appointmentId } : { manageTokenHash: sha(token) }) },
+      include,
+    });
     if (!a) throw Errors.notFound();
     return a;
   }
@@ -352,8 +374,35 @@ export class BookingService {
   }
 
   async manage(token: string) {
-    const { branch, settings } = await this.ctx();
+    const { branch, settings } = await this.ctx(false);
     return this.publicDto(await this.byManageToken(token), branch.timezone, settings);
+  }
+
+  /** "Confirmo mi asistencia" desde el recordatorio (CU-21). Idempotente; no cambia el estado de la cita. */
+  async confirmAttendance(ref: { manageToken?: string; clientToken?: string; appointmentId?: string }) {
+    const a = ref.manageToken ? await this.byManageToken(ref.manageToken) : await this.byClient(ref.clientToken, ref.appointmentId!);
+    const { branch, settings } = await this.ctx(false);
+    if (a.clientConfirmedAt) return this.publicDto(a, branch.timezone, settings);
+    if (!this.policy(a, settings).canConfirm) throw new AppException(422, 'CONFIRMATION_NOT_ALLOWED', 'Esta reserva ya no se puede confirmar');
+    const clientName = `${a.client.firstName} ${a.client.lastName}`.trim();
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const u = await tx.appointment.update({ where: { id: a.id }, data: { clientConfirmedAt: new Date(), version: { increment: 1 } }, include });
+      await tx.appointmentStatusHistory.create({ data: { appointmentId: a.id, fromStatus: a.status, toStatus: a.status, actorType: 'CLIENT', reason: 'Asistencia confirmada por la clienta' } });
+      await this.audit.record(
+        {
+          action: 'CONFIRM_ATTENDANCE',
+          module: 'appointments',
+          actor: { type: 'CLIENT', name: clientName },
+          organizationId: a.organizationId,
+          entity: { type: 'Appointment', id: a.id, label: a.code },
+          newValues: { asistenciaConfirmada: true },
+        },
+        tx,
+      );
+      return u;
+    });
+    this.events.appointmentChanged(a.organizationId, a.id, a.items.map((i) => i.staffId));
+    return this.publicDto(updated, branch.timezone, settings);
   }
 
   /** Mis reservas (portal con email verificado). */
@@ -424,7 +473,7 @@ export class BookingService {
     try {
       const updated = await this.prisma.$transaction(async (tx) => {
         await tx.appointmentItem.update({ where: { id: item.id }, data: { startAt, endAt, blockedUntil: new Date(endAt.getTime() + service.bufferAfterMin * 60_000) } });
-        const u = await tx.appointment.update({ where: { id: a.id }, data: { startAt, endAt, rescheduleCount: { increment: 1 }, version: { increment: 1 } }, include });
+        const u = await tx.appointment.update({ where: { id: a.id }, data: { startAt, endAt, clientConfirmedAt: null, rescheduleCount: { increment: 1 }, version: { increment: 1 } }, include });
         await tx.appointmentStatusHistory.create({
           data: { appointmentId: a.id, fromStatus: a.status, toStatus: a.status, actorType: 'CLIENT', reason: 'Reagendada online', metadata: { antes: a.startAt.toISOString(), despues: startAt.toISOString() } },
         });
@@ -455,12 +504,14 @@ export class BookingService {
   // ------------------------------------------------------------------ apoyo
 
   private policy(a: { status: string; startAt: Date; rescheduleCount: number }, settings: Settings) {
+    // canConfirm: la clienta puede confirmar asistencia mientras la cita esté activa y no haya empezado.
     const cancelUntilHours = settings.cancellation?.client_can_cancel_until_hours ?? 12;
     const rescheduleUntilHours = settings.cancellation?.client_can_reschedule_until_hours ?? 12;
     const maxReschedules = settings.cancellation?.max_reschedules_per_appointment ?? 2;
     const hoursLeft = (a.startAt.getTime() - Date.now()) / 3_600_000;
     const open = a.status === 'CONFIRMADA' || a.status === 'PENDIENTE';
     return {
+      canConfirm: open && hoursLeft > 0,
       canCancel: open && hoursLeft >= cancelUntilHours,
       canReschedule: open && hoursLeft >= rescheduleUntilHours && a.rescheduleCount < maxReschedules,
       cancelUntilHours,
@@ -481,6 +532,7 @@ export class BookingService {
       service: { id: item.serviceId, name: item.serviceName, durationMin: item.durationMin },
       staff: { id: item.staff.id, name: item.staff.displayName },
       total: a.total.toFixed(2),
+      clientConfirmedAt: a.clientConfirmedAt?.toISOString() ?? null,
       client: { firstName: a.client.firstName, lastName: lastNameInitial(a.client.lastName), email: maskEmail(a.client.email) },
       ...this.policy(a, settings),
     };
@@ -548,7 +600,7 @@ export class BookingService {
   }
 
   /** Emails de la clienta en segundo plano: un fallo de correo no deshace la reserva. */
-  private notify(to: string, subject: string, lines: string[]) {
-    void this.mail.send({ to, subject, text: lines.join('\n') }).catch((err: unknown) => this.logger.error(err));
+  private notify(to: string, subject: string, lines: string[], attachments?: Mail['attachments']) {
+    void this.mail.send({ to, subject, text: lines.join('\n'), attachments }).catch((err: unknown) => this.logger.error(err));
   }
 }

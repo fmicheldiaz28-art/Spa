@@ -8,5 +8,6 @@ import { ClientTokenService } from './client-token.service.js';
   imports: [AvailabilityModule],
   controllers: [BookingController],
   providers: [BookingService, ClientTokenService],
+  exports: [ClientTokenService],
 })
 export class BookingModule {}
