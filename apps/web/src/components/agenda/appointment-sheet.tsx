@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, Clock, Globe, User } from 'lucide-react';
+import { AlertTriangle, Clock, Globe, MessageCircle, User } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Alert, Badge, Button, Field, Input, Select, Sheet } from '@/components/ui';
@@ -20,6 +20,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { formatDateTime } from '@/lib/format';
 import { formatMoney } from '@/lib/types';
+import { openWhatsApp } from '@/lib/whatsapp';
 import { PaymentPanel } from './payment-panel';
 
 interface HistoryEvent {
@@ -35,6 +36,7 @@ const HISTORY_LABELS: Record<string, string> = {
   OVERBOOKING: 'Creada como sobre-turno',
   RESCHEDULE: 'Reagendada',
   CONFIRM_ATTENDANCE: 'Asistencia confirmada por la clienta',
+  WHATSAPP_REMINDER: 'Recordatorio enviado por WhatsApp',
   STATUS_CHANGE: 'Cambio de estado',
   CANCEL: 'Cancelada',
   REVERT_STATUS: 'Estado corregido',
@@ -174,6 +176,21 @@ export function AppointmentSheet({ appointment, onClose, onChanged }: { appointm
             {can('appointments.reschedule') && (a.status === 'CONFIRMADA' || a.status === 'PENDIENTE') && (
               <Button size="sm" variant="secondary" onClick={() => setMode('reschedule')}>
                 Reagendar
+              </Button>
+            )}
+            {can('clients.view_contact') && (a.status === 'CONFIRMADA' || a.status === 'PENDIENTE') && new Date(a.startAt) > new Date() && (
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busy}
+                onClick={() =>
+                  void openWhatsApp(`/appointments/${a.id}/whatsapp-reminder`).then((err) => {
+                    setError(err);
+                    if (!err) void api<HistoryEvent[]>(`/appointments/${a.id}/history`).then(setHistory);
+                  })
+                }
+              >
+                <MessageCircle className="size-4" /> Recordar por WhatsApp
               </Button>
             )}
             {can('appointments.cancel') && a.actions.includes('cancel') && (

@@ -2,7 +2,8 @@ import { Injectable, Logger, type OnApplicationBootstrap, type OnModuleDestroy }
 import { env } from '../../config/env.js';
 import { MailService } from '../../infrastructure/mail/mail.service.js';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
-import { addDays, localDate } from '../availability/domain/time.js';
+import { humanWhen } from '../../common/when.js';
+import { localDate } from '../availability/domain/time.js';
 import { ClientTokenService } from '../booking/client-token.service.js';
 import { resolveSettings } from '../organization/settings.service.js';
 import { dueReminder, reminderSlots } from './domain/reminder-plan.js';
@@ -126,15 +127,9 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
 
     const branch = a.branch;
     const tz = branch.timezone;
-    const time = new Intl.DateTimeFormat('es-BO', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: tz }).format(a.startAt);
     const day = localDate(a.startAt, tz);
     const today = localDate(now, tz);
-    const when =
-      day === today
-        ? `hoy a las ${time}`
-        : day === addDays(today, 1)
-          ? `mañana a las ${time}`
-          : `el ${new Intl.DateTimeFormat('es-BO', { weekday: 'long', day: 'numeric', month: 'long', timeZone: tz }).format(a.startAt).replace(',', '')} a las ${time}`;
+    const when = humanWhen(a.startAt, now, tz);
     const services = a.items.map((i) => `${i.serviceName} con ${i.staff.displayName}`).join(' + ');
     const link = await this.tokens.signAppointmentLink(a.id, a.organizationId, a.endAt);
     const url = `${env.WEB_ORIGIN}/reservar/gestionar/${link}`;

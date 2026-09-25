@@ -83,7 +83,8 @@ Abre http://localhost:3000.
 | Auditoría con hash encadenado, verificación de integridad y comparación con el sello del reporte semanal | ✅ (adelantado de Fase 2) | `/app/auditoria` → Verificar integridad |
 | Verificación en dos pasos (TOTP + códigos de recuperación), obligatoria para administración si se activa la política; reinicio por celular perdido | ✅ (adelantado de Fase 2) | `/seguridad`, `/app/usuarios` |
 | Lista de espera: la clienta se anota online (o la anota administración) y recibe un email cuando se libera un horario compatible; "Mis esperas" y "Reservar de nuevo" en el portal | ✅ (adelantado de Fase 2) | `/reservar`, `/mi-cuenta`, `/app/lista-espera` |
-| Recordatorios por WhatsApp, RLS, Redis | ⏳ Fase 2 (WhatsApp requiere plantilla aprobada por Meta) | docs/10 §17 |
+| Recordatorio y aviso de lista de espera por WhatsApp en un clic (enlace wa.me con el mensaje escrito; el teléfono no se muestra y cada uso queda auditado) | ✅ | Ficha de la cita, `/app/lista-espera` |
+| Recordatorios automáticos por WhatsApp (API de WhatsApp Business), RLS, Redis | ⏳ Fase 2 (WhatsApp requiere plantilla aprobada por Meta) | docs/10 §17 |
 
 **Diferencia con el documento de diseño:** las clientas no usan contraseña. Se identifican con un código enviado a su email y gestionan su reserva con el enlace privado del email de confirmación. Es menos fricción para ellas y evita guardar contraseñas débiles.
 

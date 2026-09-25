@@ -3,6 +3,7 @@ import type { Subscription } from 'rxjs';
 import type { AuthUser } from '../../common/auth-user.js';
 import { AppException, Errors } from '../../common/errors.js';
 import { maskPhone } from '../../common/mask.js';
+import { waitlistText, waLink } from '../../common/whatsapp.js';
 import { resolveBranch, resolveOrganizationId } from '../../common/org.js';
 import { env } from '../../config/env.js';
 import type { Prisma, WaitlistStatus } from '../../generated/prisma/client.js';
@@ -207,6 +208,57 @@ export class WaitlistService implements OnApplicationBootstrap, OnModuleDestroy 
       return u;
     });
     return this.dto(updated);
+  }
+
+  /** Aviso manual por WhatsApp (clientas sin email o que prefieren el chat). Queda auditado. */
+  async whatsapp(user: AuthUser, organizationId: string, id: string) {
+    const e = await this.prisma.waitlistEntry.findFirst({ where: { id, organizationId, status: { in: OPEN } }, include });
+    if (!e) throw Errors.notFound();
+    if (!e.client.phoneE164) throw new AppException(422, 'NO_PHONE', 'La clienta no tiene celular registrado', 'Agrégalo en su ficha.');
+    const date = e.date.toISOString().slice(0, 10);
+    const settings = await this.bookingSettings(organizationId);
+    const times = slotsInWindow(await this.freeSlots(organizationId, e, settings, new Map()), this.window(e)).map((s) => s.time);
+    const org = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { name: true } });
+    const bookUrl = new URL('/reservar', env.WEB_ORIGIN);
+    bookUrl.searchParams.set('servicio', e.serviceId);
+    bookUrl.searchParams.set('fecha', date);
+    if (e.staffId) bookUrl.searchParams.set('con', e.staffId);
+    const text = waitlistText({
+      firstName: e.client.firstName,
+      day: new Intl.DateTimeFormat('es-BO', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(e.date).replace(',', ''),
+      service: e.service.name,
+      times,
+      orgName: org.name,
+      bookUrl: bookUrl.toString(),
+    });
+    const now = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.waitlistEntry.update({ where: { id }, data: { status: 'NOTIFICADA', notifiedAt: now, notifyCount: { increment: 1 }, updatedAt: now } });
+      await tx.notification.create({
+        data: {
+          organizationId,
+          channel: 'WHATSAPP',
+          templateCode: 'WHATSAPP_WAITLIST',
+          recipientClientId: e.clientId,
+          recipientUserId: user.id,
+          payload: { entryId: id, date, times, manual: true },
+          status: 'ENVIADA',
+          sentAt: now,
+          attempts: 1,
+        },
+      });
+      await this.audit.record(
+        {
+          action: 'WHATSAPP_WAITLIST',
+          module: 'waitlist',
+          organizationId,
+          entity: { type: 'WaitlistEntry', id, label: `${e.client.firstName} · ${e.service.name} · ${date}` },
+          newValues: { canal: 'WhatsApp', horarios: times.join(', ') || 'sin horarios libres' },
+        },
+        tx,
+      );
+    });
+    return { url: waLink(e.client.phoneE164, text), freeSlots: times };
   }
 
   /** Esperas de una clienta verificada por email (portal "Mis reservas"). */

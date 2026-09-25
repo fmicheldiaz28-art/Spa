@@ -24,6 +24,8 @@ export const MODULE_LABELS: Record<string, string> = {
   schedules: 'Horarios',
   payments: 'Cobros',
   settings: 'Configuración',
+  waitlist: 'Lista de espera',
+  booking: 'Reservas online',
 };
 
 export const ACTION_LABELS: Record<string, { label: string; tone: BadgeTone }> = {
@@ -54,6 +56,8 @@ export const ACTION_LABELS: Record<string, { label: string; tone: BadgeTone }> =
   STATUS_CHANGE: { label: 'Cambió estado', tone: 'info' },
   REVERT_STATUS: { label: 'Corrigió estado', tone: 'warning' },
   CONFIRM_ATTENDANCE: { label: 'Confirmó asistencia', tone: 'success' },
+  WHATSAPP_REMINDER: { label: 'Recordó por WhatsApp', tone: 'info' },
+  WHATSAPP_WAITLIST: { label: 'Avisó por WhatsApp (lista de espera)', tone: 'info' },
   MFA_ENABLED: { label: 'Activó verificación en 2 pasos', tone: 'success' },
   MFA_DISABLED: { label: 'Desactivó verificación en 2 pasos', tone: 'warning' },
   MFA_RESET: { label: 'Reinició verificación en 2 pasos', tone: 'warning' },

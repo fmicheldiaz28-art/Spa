@@ -1,6 +1,6 @@
 'use client';
 
-import { BellRing, CalendarCheck, Plus, X } from 'lucide-react';
+import { BellRing, CalendarCheck, MessageCircle, Plus, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
@@ -13,6 +13,7 @@ import { formatDateTime } from '@/lib/format';
 import { useLiveUpdates } from '@/lib/live';
 import { todayLocal } from '@/lib/schedule';
 import type { ClientFull, Service } from '@/lib/types';
+import { openWhatsApp } from '@/lib/whatsapp';
 
 interface Entry {
   id: string;
@@ -33,7 +34,7 @@ interface Entry {
 
 const STATUS: Record<Entry['status'], { label: string; tone: BadgeTone }> = {
   ACTIVA: { label: 'Esperando', tone: 'info' },
-  NOTIFICADA: { label: 'Avisada por email', tone: 'success' },
+  NOTIFICADA: { label: 'Avisada', tone: 'success' },
   CONVERTIDA: { label: 'Agendada', tone: 'primary' },
   VENCIDA: { label: 'Venció', tone: 'neutral' },
   CANCELADA: { label: 'Cancelada', tone: 'neutral' },
@@ -166,6 +167,21 @@ export default function WaitlistPage() {
                         >
                           <CalendarCheck className="size-4" /> Agenda
                         </Link>
+                        {can('clients.view_contact') && e.client.phone && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            title="Avisar por WhatsApp (queda registrado en la auditoría)"
+                            onClick={() =>
+                              void openWhatsApp(`/waitlist/${e.id}/whatsapp`).then((err) => {
+                                setError(err);
+                                if (!err) void load();
+                              })
+                            }
+                          >
+                            <MessageCircle className="size-4" /> WhatsApp
+                          </Button>
+                        )}
                         <Button size="sm" variant="secondary" onClick={() => void setStatus(e, 'CONVERTIDA')}>
                           Agendada
                         </Button>

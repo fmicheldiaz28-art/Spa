@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
 import type { AuthUser } from '../../common/auth-user.js';
 import { CurrentUser, RequirePermission } from '../../common/decorators.js';
+import { Errors } from '../../common/errors.js';
 import { resolveOrganizationId } from '../../common/org.js';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
 import { dateSchema } from '../../common/validation.js';
@@ -44,6 +45,14 @@ export class WaitlistController {
   @RequirePermission('waitlist.manage')
   async create(@CurrentUser() user: AuthUser, @Body(new ZodValidationPipe(createSchema)) dto: z.infer<typeof createSchema>) {
     return this.waitlist.create(user, await resolveOrganizationId(this.prisma, user), dto, 'ADMIN');
+  }
+
+  @Post(':id/whatsapp')
+  @HttpCode(200)
+  @RequirePermission('waitlist.manage')
+  async whatsapp(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    if (!user.permissions.has('clients.view_contact')) throw Errors.forbidden(); // usa el teléfono de la clienta
+    return this.waitlist.whatsapp(user, await resolveOrganizationId(this.prisma, user), id);
   }
 
   @Patch(':id')

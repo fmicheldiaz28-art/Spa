@@ -89,6 +89,10 @@ try {
   blocked = true;
 }
 check(blocked, 'La auditoría rechaza modificaciones');
+const forged = (
+  await db.query(`INSERT INTO audit_logs (actor_type, action, module, hash, seal_seq) VALUES ('SYSTEM', 'SMOKE', 'smoke', '\\x00'::bytea, 999999) RETURNING hash, seal_seq`)
+).rows[0];
+check(forged.hash === null && forged.seal_seq === null, 'Un registro nuevo no puede traer un sello inventado');
 await db.query('BEGIN');
 await db.query(`SET LOCAL session_replication_role = 'replica'`);
 await db.query(`UPDATE audit_logs SET reason = 'alterado' WHERE seal_seq = 1`);

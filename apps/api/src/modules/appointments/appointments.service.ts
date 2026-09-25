@@ -3,10 +3,14 @@ import type { AppointmentStatus } from '@naturalspa/shared';
 import { type AuthUser, can } from '../../common/auth-user.js';
 import { AppException, Errors } from '../../common/errors.js';
 import { lastNameInitial } from '../../common/mask.js';
+import { humanWhen } from '../../common/when.js';
+import { reminderText, waLink } from '../../common/whatsapp.js';
+import { env } from '../../config/env.js';
 import type { AppointmentSource, CancelledByType, Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { AvailabilityService, SLOT_PROBLEM_MESSAGES } from '../availability/availability.service.js';
+import { ClientTokenService } from '../booking/client-token.service.js';
 import { EventsService } from '../events/events.service.js';
 import { addDays, localToUtc } from '../availability/domain/time.js';
 import {
@@ -67,6 +71,7 @@ export class AppointmentsService {
     private readonly audit: AuditService,
     private readonly availability: AvailabilityService,
     private readonly events: EventsService,
+    private readonly tokens: ClientTokenService,
   ) {}
 
   // -------------------------------------------------------------------- lectura
@@ -522,6 +527,56 @@ export class AppointmentsService {
   }
 
   // -------------------------------------------------------------------- apoyo
+
+  /**
+   * Recordatorio manual por WhatsApp (clic para chatear): arma el enlace wa.me con el teléfono de
+   * la clienta y un enlace para confirmar, reagendar o cancelar. El teléfono no se muestra en
+   * pantalla; cada uso queda en la auditoría y en `notifications`.
+   */
+  async whatsappReminder(user: AuthUser, id: string) {
+    const a = await this.find(user, id);
+    if (!['PENDIENTE', 'CONFIRMADA'].includes(a.status) || a.startAt <= new Date()) {
+      throw new AppException(422, 'NOT_REMINDABLE', 'Solo se recuerdan citas pendientes o confirmadas que aún no empiezan');
+    }
+    const client = await this.prisma.client.findUniqueOrThrow({ where: { id: a.clientId }, select: { firstName: true, lastName: true, phoneE164: true } });
+    if (!client.phoneE164) throw new AppException(422, 'NO_PHONE', 'La clienta no tiene celular registrado', 'Agrégalo en su ficha.');
+    const { organizationId, branch } = await this.availability.context(user);
+    const org = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { name: true } });
+    const link = await this.tokens.signAppointmentLink(a.id, organizationId, a.endAt);
+    const text = reminderText({
+      firstName: client.firstName,
+      when: humanWhen(a.startAt, new Date(), branch.timezone),
+      services: a.items.map((i) => `${i.serviceName} con ${i.staff.displayName}`).join(' + '),
+      orgName: org.name,
+      manageUrl: `${env.WEB_ORIGIN}/reservar/gestionar/${link}`,
+    });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.notification.create({
+        data: {
+          organizationId,
+          channel: 'WHATSAPP',
+          templateCode: 'WHATSAPP_REMINDER',
+          recipientClientId: a.clientId,
+          recipientUserId: user.id,
+          appointmentId: a.id,
+          payload: { startAt: a.startAt.toISOString(), manual: true },
+          status: 'ENVIADA',
+          sentAt: new Date(),
+          attempts: 1,
+        },
+      });
+      await this.audit.record(
+        {
+          action: 'WHATSAPP_REMINDER',
+          module: 'appointments',
+          entity: { type: 'Appointment', id: a.id, label: a.code },
+          newValues: { canal: 'WhatsApp', clienta: `${client.firstName} ${client.lastName}`.trim() },
+        },
+        tx,
+      );
+    });
+    return { url: waLink(client.phoneE164, text) };
+  }
 
   private async find(user: AuthUser, id: string): Promise<AppointmentRecord> {
     const { organizationId } = await this.availability.context(user);

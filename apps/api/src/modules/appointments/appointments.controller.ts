@@ -151,6 +151,14 @@ export class AppointmentsController {
     return this.status(user, id, 'no-show', ifMatch);
   }
 
+  /** Enlace de WhatsApp con el recordatorio escrito (usa el contacto de la clienta: requiere ese permiso). */
+  @Post('appointments/:id/whatsapp-reminder')
+  @HttpCode(200)
+  @RequirePermission('clients.view_contact')
+  whatsappReminder(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.appointments.whatsappReminder(user, id);
+  }
+
   @Post('appointments/:id/cancel')
   @HttpCode(200)
   @RequirePermission('appointments.cancel')

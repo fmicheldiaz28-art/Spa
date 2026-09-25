@@ -93,7 +93,7 @@ export class WeeklyReportService implements OnApplicationBootstrap, OnModuleDest
     const [groups, clientConfirmed, remindersSent, payments, prevPayments, newClients, top, nextWeek, seal] = await Promise.all([
       this.prisma.appointment.groupBy({ by: ['status', 'source'], where: inWeek, _count: true }),
       this.prisma.appointment.count({ where: { ...inWeek, clientConfirmedAt: { not: null } } }),
-      this.prisma.notification.count({ where: { organizationId, templateCode: { startsWith: 'REMINDER_' }, status: 'ENVIADA', sentAt: { gte: from, lt: to } } }),
+      this.prisma.notification.count({ where: { organizationId, OR: [{ templateCode: { startsWith: 'REMINDER_' } }, { templateCode: 'WHATSAPP_REMINDER' }], status: 'ENVIADA', sentAt: { gte: from, lt: to } } }),
       this.prisma.payment.findMany({ where: { organizationId, status: 'REGISTRADO', paidAt: { gte: from, lt: to } }, select: { amount: true, type: true } }),
       this.prisma.payment.findMany({ where: { organizationId, status: 'REGISTRADO', paidAt: { gte: prevFrom, lt: from } }, select: { amount: true, type: true } }),
       this.prisma.client.count({ where: { organizationId, deletedAt: null, createdAt: { gte: from, lt: to } } }),
