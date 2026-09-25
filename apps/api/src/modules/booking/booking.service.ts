@@ -54,6 +54,7 @@ const PUBLIC_ACTOR: AuthUser = {
   clientId: null,
   sessionId: '',
   mustChangePassword: false,
+  mfaSetupRequired: false,
 };
 
 const sha = (v: string) => createHash('sha256').update(v).digest('hex');

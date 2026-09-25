@@ -14,6 +14,12 @@ const schema = z.object({
   MAIL_FROM: z.string().default('NaturalSpa <no-responder@naturalspa.bo>'),
   // Cada cuánto revisa y envía recordatorios; 0 los apaga en esta instancia.
   REMINDERS_INTERVAL_SEC: z.coerce.number().int().min(0).default(60),
+  // Clave AES-256 (32 bytes en base64) para cifrar los secretos MFA. Sin ella se deriva de JWT_SECRET.
+  MFA_ENCRYPTION_KEY: z.string().optional(),
+  // Sellado de la auditoría con hash encadenado; 0 lo apaga en esta instancia.
+  AUDIT_SEAL_INTERVAL_SEC: z.coerce.number().int().min(0).default(60),
+  // Reporte semanal por email a administración (los lunes). 'false' lo apaga en esta instancia.
+  WEEKLY_REPORT_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
 });
 
 export const env = schema.parse(process.env);

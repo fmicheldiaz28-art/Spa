@@ -78,6 +78,10 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
   }
   if (!res.ok) {
     const problem = (await res.json().catch(() => null)) as Problem | null;
+    // La política exige verificación en dos pasos: única pantalla disponible hasta configurarla.
+    if (problem?.code === 'MFA_SETUP_REQUIRED' && typeof window !== 'undefined' && window.location.pathname !== '/seguridad') {
+      window.location.assign('/seguridad');
+    }
     throw new ApiError(problem ?? { status: res.status, code: 'NETWORK_ERROR', title: 'No se pudo conectar con el servidor' });
   }
   return (res.status === 204 ? undefined : await res.json()) as T;

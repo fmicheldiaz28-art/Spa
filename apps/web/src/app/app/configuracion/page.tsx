@@ -15,6 +15,8 @@ interface SettingsData {
     no_show: { grace_minutes: number; flag_client_after_count: number };
     privacy: { staff_client_visibility_months: number };
     reminders: { enabled: boolean; hours_before: number[]; channels: string[] };
+    weekly_report: { enabled: boolean; send_hour: number };
+    security: { require_mfa_for_admin: boolean };
   };
 }
 
@@ -174,6 +176,32 @@ export default function SettingsPage() {
         <Field label="Segundo aviso (horas antes)" htmlFor="rem2" hint="0 = sin segundo aviso.">
           <Input id="rem2" type="number" min={0} max={12} disabled={!s.reminders.enabled} value={s.reminders.hours_before[1] ?? 0} onChange={(e) => setReminderHours(1, num(e.target.value))} />
         </Field>
+      </Section>
+
+      <Section title="Reporte semanal" description="Cada lunes llega por email a las administradoras el resumen de la semana anterior.">
+        <label className="flex items-center gap-2 text-sm sm:col-span-2">
+          <input type="checkbox" checked={s.weekly_report.enabled} onChange={(e) => setSetting('weekly_report', 'enabled', e.target.checked)} className="size-4 accent-[var(--color-primary)]" />
+          Enviar el reporte semanal
+        </label>
+        <Field label="Hora de envío (lunes)" htmlFor="wrhour">
+          <Select id="wrhour" disabled={!s.weekly_report.enabled} value={s.weekly_report.send_hour} onChange={(e) => setSetting('weekly_report', 'send_hour', Number(e.target.value))}>
+            {[6, 7, 8, 9, 10, 12, 18, 20].map((h) => (
+              <option key={h} value={h}>
+                {String(h).padStart(2, '0')}:00
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </Section>
+
+      <Section title="Seguridad" description="Protección de las cuentas con acceso a toda la información del spa.">
+        <label className="flex items-start gap-2 text-sm sm:col-span-2">
+          <input type="checkbox" checked={s.security.require_mfa_for_admin} onChange={(e) => setSetting('security', 'require_mfa_for_admin', e.target.checked)} className="mt-0.5 size-4 accent-[var(--color-primary)]" />
+          <span>
+            Exigir verificación en dos pasos a administración
+            <span className="block text-muted">Al guardar, quien aún no la tenga (incluida tú) deberá configurarla con su celular antes de seguir usando el sistema.</span>
+          </span>
+        </label>
       </Section>
 
       <Section title="Privacidad" description="Qué ve cada especialista de sus clientas.">

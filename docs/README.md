@@ -32,6 +32,7 @@ Plataforma web SaaS para la gestión integral del centro de estética y spa **Na
 | 20 | Sistema de auditoría | [11-seguridad-auditoria.md](11-seguridad-auditoria.md#20-sistema-de-auditoría) |
 | 21 | Escalabilidad futura | [12-escalabilidad-recomendaciones.md](12-escalabilidad-recomendaciones.md) |
 | 22 | Recomendaciones finales | [12-escalabilidad-recomendaciones.md](12-escalabilidad-recomendaciones.md#22-recomendaciones-finales) |
+| — | Operación: runbooks (despliegue, respaldos, incidentes) | [13-operacion-runbooks.md](13-operacion-runbooks.md) |
 
 ## Decisiones clave
 

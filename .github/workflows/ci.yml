@@ -40,3 +40,11 @@ jobs:
           pnpm db:migrate
           pnpm db:seed
           pnpm db:seed   # el seed debe ser idempotente
+      - name: Prueba de humo contra PostgreSQL real (concurrencia, auditoría, MFA)
+        working-directory: apps/api
+        env:
+          SEED_DEMO: "true"
+        run: |
+          pnpm db:seed
+          node dist/main.js > api.log 2>&1 &
+          node scripts/smoke.mjs || (echo "--- log del API ---"; tail -n 100 api.log; exit 1)

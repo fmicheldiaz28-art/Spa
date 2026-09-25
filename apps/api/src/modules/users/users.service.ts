@@ -6,6 +6,7 @@ import type { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
 import { diff } from '../audit/audit-diff.js';
 import { AuditService } from '../audit/audit.service.js';
+import { MfaService } from '../auth/mfa/mfa.service.js';
 import { generateTemporaryPassword, hashPassword, passwordPolicyViolations } from '../auth/password.js';
 import {
   canAssignRole,
@@ -65,6 +66,7 @@ function toDto(u: UserRecord) {
     status: u.status,
     locked: !!u.lockedUntil && u.lockedUntil > new Date(),
     mustChangePassword: u.mustChangePassword,
+    mfaEnabled: u.mfaEnabled,
     lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
     createdAt: u.createdAt.toISOString(),
     staff: u.staffProfile,
@@ -96,6 +98,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly mfa: MfaService,
   ) {}
 
   /** Un ADMIN ve el personal de su organización; el SUPER_ADMIN ve todo el personal. */
@@ -313,6 +316,14 @@ export class UsersService {
   }
 
   /** Genera una contraseña temporal (se muestra una vez) y obliga a cambiarla al ingresar. */
+  /** Celular perdido: quita la verificación en dos pasos de otra persona (con la misma política que el reseteo de contraseña). */
+  async resetMfa(actor: AuthUser, id: string, reason: string) {
+    const target = await this.findTarget(actor, id);
+    violation(canManageTarget(actor.roles, rolesOf(target)));
+    await this.mfa.reset(actor, id, reason);
+    return toDto(await this.findTarget(actor, id));
+  }
+
   async resetPassword(actor: AuthUser, id: string) {
     const target = await this.findTarget(actor, id);
     violation(canManageTarget(actor.roles, rolesOf(target)));

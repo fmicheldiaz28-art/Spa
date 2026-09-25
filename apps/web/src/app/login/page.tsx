@@ -1,6 +1,6 @@
 'use client';
 
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useState } from 'react';
@@ -10,13 +10,16 @@ import { ApiError } from '@/lib/api';
 import { homeFor, useAuth } from '@/lib/auth';
 
 export default function LoginPage() {
-  const { login, status, user } = useAuth();
+  const { login, loginMfa, status, user } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Segundo paso (verificación en dos pasos): token temporal del primer paso y código de la app.
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [code, setCode] = useState('');
 
   useEffect(() => {
     if (status === 'authenticated' && user) router.replace(homeFor(user));
@@ -27,10 +30,22 @@ export default function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      const me = await login(email, password);
-      router.replace(homeFor(me));
+      if (mfaToken) {
+        router.replace(homeFor(await loginMfa(mfaToken, code)));
+        return;
+      }
+      const step = await login(email, password);
+      if ('mfaToken' in step) {
+        setMfaToken(step.mfaToken);
+        return;
+      }
+      router.replace(homeFor(step.me));
     } catch (err) {
       const problem = err instanceof ApiError ? err.problem : null;
+      if (problem?.code === 'MFA_SESSION_EXPIRED') {
+        setMfaToken(null);
+        setCode('');
+      }
       setError(problem ? [problem.title, problem.detail].filter(Boolean).join('. ') : 'No se pudo iniciar sesión');
     } finally {
       setSubmitting(false);
@@ -57,6 +72,43 @@ export default function LoginPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Bienvenida de nuevo</h1>
           <p className="mt-1 text-sm text-muted">Ingresa con tu cuenta de NaturalSpa.</p>
 
+          {mfaToken ? (
+            <form onSubmit={onSubmit} className="mt-8 space-y-5" noValidate>
+              {error && <Alert>{error}</Alert>}
+              <div className="flex items-start gap-3 rounded-xl border border-border bg-surface p-4 text-sm">
+                <ShieldCheck className="mt-0.5 size-5 shrink-0 text-primary" />
+                <p>Abre tu app de autenticación y escribe el código de 6 dígitos de NaturalSpa.</p>
+              </div>
+              <Field label="Código de verificación" htmlFor="code" hint="¿Sin el celular? Usa uno de tus códigos de recuperación.">
+                <Input
+                  id="code"
+                  autoComplete="one-time-code"
+                  inputMode="text"
+                  autoFocus
+                  required
+                  maxLength={12}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="123456"
+                  className="text-center text-lg tracking-widest tabular-nums"
+                />
+              </Field>
+              <Button type="submit" className="w-full" disabled={submitting || code.trim().length < 6}>
+                {submitting ? 'Verificando…' : 'Verificar'}
+              </Button>
+              <button
+                type="button"
+                className="w-full text-sm text-muted hover:text-text"
+                onClick={() => {
+                  setMfaToken(null);
+                  setCode('');
+                  setError(null);
+                }}
+              >
+                Volver
+              </button>
+            </form>
+          ) : (
           <form onSubmit={onSubmit} className="mt-8 space-y-5" noValidate>
             {error && <Alert>{error}</Alert>}
             <Field label="Email" htmlFor="email">
@@ -101,6 +153,7 @@ export default function LoginPage() {
               {submitting ? 'Ingresando…' : 'Iniciar sesión'}
             </Button>
           </form>
+          )}
         </div>
       </section>
     </main>

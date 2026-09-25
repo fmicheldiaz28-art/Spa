@@ -24,7 +24,7 @@ function StatusBadge({ user }: { user: StaffUser }) {
   if (user.status === 'INACTIVE') return <Badge tone="neutral">Inactivo</Badge>;
   if (user.locked) return <Badge tone="danger">Bloqueado</Badge>;
   if (user.mustChangePassword) return <Badge tone="warning">Contraseña temporal</Badge>;
-  return <Badge tone="success">Activo</Badge>;
+  return <Badge tone="success">{user.mfaEnabled ? 'Activo · 2 pasos' : 'Activo'}</Badge>;
 }
 
 function Avatar({ user }: { user: StaffUser }) {
@@ -42,7 +42,8 @@ function Avatar({ user }: { user: StaffUser }) {
 type Confirm =
   | { kind: 'deactivate'; user: StaffUser }
   | { kind: 'reset'; user: StaffUser }
-  | { kind: 'sessions'; user: StaffUser };
+  | { kind: 'sessions'; user: StaffUser }
+  | { kind: 'mfa'; user: StaffUser };
 
 export default function UsersPage() {
   const { user: me, can } = useAuth();
@@ -121,6 +122,11 @@ export default function UsersPage() {
             ? `${u.name} fue desactivado. Tiene ${r.futureAppointments} citas futuras que debes reasignar.`
             : `${u.name} fue desactivado y ya no puede ingresar.`,
         );
+      });
+    } else if (confirm.kind === 'mfa') {
+      await run(async () => {
+        await api(`/users/${u.id}/mfa/reset`, { method: 'POST', body: JSON.stringify({ reason: reason.trim() }) });
+        setNotice(`Se reinició la verificación en dos pasos de ${u.name}. Deberá configurarla de nuevo.`);
       });
     } else if (confirm.kind === 'reset') {
       await run(async () => {
@@ -246,6 +252,11 @@ export default function UsersPage() {
                               hidden: self || !can('users.reset_password') || u.status === 'INACTIVE',
                             },
                             {
+                              label: 'Reiniciar verificación en dos pasos',
+                              onSelect: () => setConfirm({ kind: 'mfa', user: u }),
+                              hidden: self || !u.mfaEnabled || !can('users.reset_password'),
+                            },
+                            {
                               label: 'Cerrar sus sesiones',
                               onSelect: () => setConfirm({ kind: 'sessions', user: u }),
                               hidden: self || !can('users.deactivate') || u.status === 'INACTIVE',
@@ -309,14 +320,16 @@ export default function UsersPage() {
             ? `¿Desactivar a ${confirm.user.name}?`
             : confirm?.kind === 'reset'
               ? `¿Restablecer la contraseña de ${confirm.user.name}?`
-              : `¿Cerrar las sesiones de ${confirm?.user.name}?`
+              : confirm?.kind === 'mfa'
+                ? `¿Reiniciar la verificación en dos pasos de ${confirm.user.name}?`
+                : `¿Cerrar las sesiones de ${confirm?.user.name}?`
         }
         footer={
           <>
             <Button variant="secondary" size="sm" onClick={() => setConfirm(null)} disabled={busy}>
               Cancelar
             </Button>
-            <Button variant={confirm?.kind === 'deactivate' ? 'danger' : 'primary'} size="sm" onClick={() => void onConfirm()} disabled={busy}>
+            <Button variant={confirm?.kind === 'deactivate' ? 'danger' : 'primary'} size="sm" onClick={() => void onConfirm()} disabled={busy || (confirm?.kind === 'mfa' && reason.trim().length < 3)}>
               {busy ? 'Procesando…' : confirm?.kind === 'deactivate' ? 'Desactivar' : 'Confirmar'}
             </Button>
           </>
@@ -336,6 +349,14 @@ export default function UsersPage() {
           <p className="text-muted">
             Se generará una contraseña temporal y se cerrarán sus sesiones. Deberá cambiarla al ingresar.
           </p>
+        )}
+        {confirm?.kind === 'mfa' && (
+          <div className="space-y-3">
+            <p className="text-muted">Úsalo si perdió o cambió de celular. Se cerrarán sus sesiones y, al ingresar, deberá configurar la verificación de nuevo.</p>
+            <Field label="Motivo" htmlFor="mfa-reason">
+              <Input id="mfa-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Ej.: perdió el celular" />
+            </Field>
+          </div>
         )}
         {confirm?.kind === 'sessions' && <p className="text-muted">Tendrá que volver a iniciar sesión en todos sus dispositivos.</p>}
       </Dialog>

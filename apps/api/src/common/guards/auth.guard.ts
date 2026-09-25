@@ -48,6 +48,9 @@ export class AuthGuard implements CanActivate {
     if (user.mustChangePassword && !allowPending) {
       throw new AppException(403, 'PASSWORD_CHANGE_REQUIRED', 'Debes cambiar tu contraseña para continuar');
     }
+    if (user.mfaSetupRequired && !allowPending) {
+      throw new AppException(403, 'MFA_SETUP_REQUIRED', 'Configura la verificación en dos pasos para continuar');
+    }
 
     if (required?.length && !required.some((p) => user.permissions.has(p))) {
       throw Errors.forbidden();

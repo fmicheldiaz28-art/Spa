@@ -2,7 +2,7 @@
 
 Plataforma web para gestionar agenda, clientas, servicios, colaboradoras, reservas online, cobros, reportes y auditoría de **NaturalSpa** (Santa Cruz de la Sierra, Bolivia).
 
-El documento de diseño completo está en [docs/](docs/README.md).
+El documento de diseño completo está en [docs/](docs/README.md). Operación en producción: [docs/13-operacion-runbooks.md](docs/13-operacion-runbooks.md).
 
 ## Estructura
 
@@ -79,7 +79,10 @@ Abre http://localhost:3000.
 | Aviso de clientas con no-show repetido (umbral configurable) en agenda y ficha de la cita | ✅ | `/app/agenda`, `/app/configuracion` |
 | App instalable (PWA: manifest, íconos, service worker con página sin conexión) | ✅ (el service worker se activa solo en producción) | — |
 | Cabeceras de seguridad en la web (CSP, HSTS, X-Frame-Options, Referrer-Policy, Permissions-Policy) | ✅ | `apps/web/next.config.ts` |
-| Recordatorios por WhatsApp, MFA, RLS, Redis | ⏳ Fase 2 (WhatsApp requiere plantilla aprobada por Meta) | docs/10 §17 |
+| Reporte semanal por email a administración (lunes, con el último sello de auditoría) | ✅ (adelantado de Fase 2) | `/app/configuracion` |
+| Auditoría con hash encadenado, verificación de integridad y comparación con el sello del reporte semanal | ✅ (adelantado de Fase 2) | `/app/auditoria` → Verificar integridad |
+| Verificación en dos pasos (TOTP + códigos de recuperación), obligatoria para administración si se activa la política; reinicio por celular perdido | ✅ (adelantado de Fase 2) | `/seguridad`, `/app/usuarios` |
+| Recordatorios por WhatsApp, RLS, Redis | ⏳ Fase 2 (WhatsApp requiere plantilla aprobada por Meta) | docs/10 §17 |
 
 **Diferencia con el documento de diseño:** las clientas no usan contraseña. Se identifican con un código enviado a su email y gestionan su reserva con el enlace privado del email de confirmación. Es menos fricción para ellas y evita guardar contraseñas débiles.
 
@@ -96,5 +99,7 @@ Abre http://localhost:3000.
 - **Tiempo real con Server-Sent Events** (alternativa prevista en docs §8) en lugar de Socket.IO: sin dependencias nuevas y suficiente porque el flujo es solo servidor → navegador. Los eventos llevan únicamente identificadores; cada pantalla vuelve a pedir los datos con sus permisos. El stream se cierra al vencer el access token y el cliente se reconecta. Bus en memoria (una instancia); al escalar, Redis pub/sub.
 - **Recordatorios sin Redis:** la tabla `notifications` hace de cola. Un proceso del API (cada `REMINDERS_INTERVAL_SEC`, 60 s) programa una fila por cita, aviso y horario (índice único → idempotente aunque haya varias instancias) y la envía revalidando que la cita siga activa y en el mismo horario; reagendar genera avisos nuevos y borra la confirmación anterior. El enlace del email es un JWT firmado que vale solo para esa cita y vence al terminar.
 - **PWA sin datos en caché:** el service worker solo guarda archivos estáticos con hash y la página sin conexión; nunca respuestas del API ni páginas con datos de clientas.
-- **Pendiente de verificar con PostgreSQL real:** la prueba de concurrencia (10 reservas simultáneas del mismo horario) se ejecutó sobre PGlite. La base respondió bien (una sola cita creada), pero PGlite se desincroniza con transacciones concurrentes que fallan. Hay que repetirla con Docker o `db:start`.
+- **Auditoría con hash encadenado:** cada registro se sella en PostgreSQL (`seal_audit_logs()`, cada minuto) con `SHA-256(prev_hash ‖ registro)`; el trigger de inmutabilidad solo permite escribir el sello una vez. `verify_audit_chain()` detecta registros alterados, borrados o reordenados aunque se salten los triggers. El reporte semanal lleva el último sello a la bandeja de administración como ancla externa.
+- **MFA sin dependencias en el API:** TOTP (RFC 6238) con `node:crypto`, probado con los vectores del RFC; secreto cifrado con AES-256-GCM (`MFA_ENCRYPTION_KEY`); protección contra repetición del mismo código; códigos de recuperación guardados como hash.
+- **Concurrencia verificada en CI sobre PostgreSQL real:** `apps/api/scripts/smoke.mjs` lanza 10 reservas simultáneas del mismo horario y exige exactamente 1 creada y 9 rechazadas con 409; también comprueba el sellado de la auditoría y el login con MFA. PGlite (desarrollo) no soporta transacciones concurrentes: localmente se usa `SMOKE_SKIP_CONCURRENCY=1`.
 - **JWT firmado con HS256** en esta etapa; el paso a EdDSA con rotación de claves (docs §19.2) está previsto para el hardening del Sprint 6.

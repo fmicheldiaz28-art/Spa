@@ -108,6 +108,13 @@ export class UsersController {
     return this.users.resetPassword(user, id);
   }
 
+  @Post(':id/mfa/reset')
+  @HttpCode(200)
+  @RequirePermission('users.reset_password')
+  resetMfa(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(z.object({ reason: z.string().trim().min(3).max(300) }))) dto: { reason: string }) {
+    return this.users.resetMfa(user, id, dto.reason);
+  }
+
   @Get(':id/sessions')
   @RequirePermission('users.read')
   sessions(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {

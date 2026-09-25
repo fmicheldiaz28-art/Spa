@@ -9,6 +9,7 @@ import { MailService } from '../../infrastructure/mail/mail.service.js';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { dummyVerify, hashPassword, passwordPolicyViolations, verifyPassword } from './password.js';
+import { MfaService } from './mfa/mfa.service.js';
 import { TokenService } from './token.service.js';
 
 export interface IssuedTokens {
@@ -18,6 +19,9 @@ export interface IssuedTokens {
   refreshExpiresAt: Date;
 }
 
+/** Con MFA activo, la contraseña correcta no abre sesión: entrega un token de 5 min para el segundo paso. */
+export type LoginResult = { kind: 'tokens'; userId: string } & IssuedTokens | { kind: 'mfa'; mfaToken: string };
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -25,9 +29,10 @@ export class AuthService {
     private readonly tokens: TokenService,
     private readonly audit: AuditService,
     private readonly mail: MailService,
+    private readonly mfa: MfaService,
   ) {}
 
-  async login(email: string, password: string): Promise<IssuedTokens & { userId: string }> {
+  async login(email: string, password: string): Promise<LoginResult> {
     const user = await this.prisma.user.findUnique({
       where: { email },
       include: { userRoles: { select: { role: { select: { code: true } } } } },
@@ -68,26 +73,62 @@ export class AuthService {
 
     const valid = await verifyPassword(user.passwordHash, password);
     if (!valid || user.status !== 'ACTIVE') {
-      const failed = valid ? user.failedLoginCount : user.failedLoginCount + 1;
-      const lock = failed >= LOGIN_POLICY.maxFailedLogins;
-      await this.prisma.$transaction(async (tx) => {
-        await tx.user.update({
-          where: { id: user.id },
-          data: {
-            failedLoginCount: lock ? 0 : failed,
-            lockedUntil: lock ? new Date(Date.now() + LOGIN_POLICY.lockoutMinutes * 60_000) : undefined,
-          },
-        });
-        const base = { module: 'auth', actor, entity, organizationId: user.organizationId };
-        await this.audit.record(
-          { ...base, action: 'LOGIN_FAILED', reason: valid ? `Usuario ${user.status}` : 'Contraseña incorrecta' },
-          tx,
-        );
-        if (lock) await this.audit.record({ ...base, action: 'ACCOUNT_LOCKED' }, tx);
-      });
+      await this.recordFailure(user, actor, entity, 'LOGIN_FAILED', valid ? `Usuario ${user.status}` : 'Contraseña incorrecta', !valid);
       throw Errors.invalidCredentials();
     }
 
+    if (user.mfaEnabled) return { kind: 'mfa', mfaToken: await this.tokens.signMfaToken(user.id) };
+    return { kind: 'tokens', ...(await this.completeLogin(user, actor, entity)) };
+  }
+
+  /** Segundo paso del login: código de la app de autenticación o código de recuperación. */
+  async loginMfa(mfaToken: string, code: string): Promise<IssuedTokens & { userId: string }> {
+    const userId = await this.tokens.verifyMfaToken(mfaToken);
+    if (!userId) throw new AppException(401, 'MFA_SESSION_EXPIRED', 'La verificación venció', 'Vuelve a ingresar tu contraseña.');
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, include: { userRoles: { select: { role: { select: { code: true } } } } } });
+    if (!user || user.deletedAt || user.status !== 'ACTIVE') throw Errors.invalidCredentials();
+    const actor = { type: 'USER' as const, userId: user.id, name: `${user.firstName} ${user.lastName}`.trim(), role: user.userRoles[0]?.role.code ?? null };
+    const entity = { type: 'User', id: user.id, label: user.email };
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      throw Errors.accountLocked(Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60_000));
+    }
+
+    const method = await this.mfa.verifyLogin(user.id, code);
+    if (!method) {
+      await this.recordFailure(user, actor, entity, 'MFA_FAILED', 'Código de verificación incorrecto', true);
+      throw new AppException(401, 'INVALID_MFA_CODE', 'El código no es correcto', 'Revisa que la hora de tu celular sea automática.');
+    }
+    return this.completeLogin(user, actor, entity, method === 'recovery' ? 'Con código de recuperación' : 'Con verificación en dos pasos');
+  }
+
+  /** Intento fallido: suma al contador y bloquea al llegar al límite (docs/11 §19.2). */
+  private async recordFailure(
+    user: { id: string; organizationId: string | null; failedLoginCount: number },
+    actor: NonNullable<Parameters<AuditService['record']>[0]['actor']>,
+    entity: { type: string; id: string; label: string },
+    action: string,
+    reason: string,
+    counts: boolean,
+  ) {
+    const failed = counts ? user.failedLoginCount + 1 : user.failedLoginCount;
+    const lock = failed >= LOGIN_POLICY.maxFailedLogins;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: { failedLoginCount: lock ? 0 : failed, lockedUntil: lock ? new Date(Date.now() + LOGIN_POLICY.lockoutMinutes * 60_000) : undefined },
+      });
+      const base = { module: 'auth', actor, entity, organizationId: user.organizationId };
+      await this.audit.record({ ...base, action, reason }, tx);
+      if (lock) await this.audit.record({ ...base, action: 'ACCOUNT_LOCKED' }, tx);
+    });
+  }
+
+  private completeLogin(
+    user: { id: string; organizationId: string | null },
+    actor: NonNullable<Parameters<AuditService['record']>[0]['actor']>,
+    entity: { type: string; id: string; label: string },
+    reason?: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: user.id },
@@ -95,7 +136,7 @@ export class AuthService {
       });
       const issued = await this.createSession(tx, user.id, randomUUID());
       await this.audit.record(
-        { action: 'LOGIN', module: 'auth', actor, entity, organizationId: user.organizationId, sessionId: issued.sessionId },
+        { action: 'LOGIN', module: 'auth', actor, entity, organizationId: user.organizationId, sessionId: issued.sessionId, reason: reason ?? null },
         tx,
       );
       return { ...issued, userId: user.id };
@@ -292,6 +333,7 @@ export class AuthService {
       staffId: user.staffId,
       clientId: user.clientId,
       mustChangePassword: user.mustChangePassword,
+      mfaSetupRequired: user.mfaSetupRequired,
     };
   }
 

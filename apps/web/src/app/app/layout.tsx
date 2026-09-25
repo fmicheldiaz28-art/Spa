@@ -1,7 +1,7 @@
 'use client';
 
 import { ROLE_NAMES } from '@naturalspa/shared';
-import { LogOut, Menu } from 'lucide-react';
+import { KeyRound, LogOut, Menu, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -65,9 +65,10 @@ export default function BackofficeLayout({ children }: { children: React.ReactNo
   useEffect(() => {
     if (status === 'anonymous') router.replace('/login');
     if (status === 'authenticated' && user?.mustChangePassword) router.replace('/cambiar-contrasena');
+    else if (status === 'authenticated' && user?.mfaSetupRequired) router.replace('/seguridad');
   }, [status, user, router]);
 
-  if (status !== 'authenticated' || !user || user.mustChangePassword) {
+  if (status !== 'authenticated' || !user || user.mustChangePassword || user.mfaSetupRequired) {
     return <div className="grid min-h-dvh place-items-center text-sm text-muted">Cargando…</div>;
   }
 
@@ -99,6 +100,9 @@ export default function BackofficeLayout({ children }: { children: React.ReactNo
             <p className="truncate text-sm font-medium text-white">{user.name}</p>
             <p className="truncate text-xs text-sidebar-fg">{role}</p>
           </div>
+          <Link href="/seguridad" className="rounded-md p-2 text-sidebar-fg hover:bg-white/5 hover:text-white" aria-label="Seguridad de la cuenta" title="Seguridad de la cuenta">
+            <ShieldCheck className="size-4" />
+          </Link>
           <button onClick={onLogout} className="rounded-md p-2 text-sidebar-fg hover:bg-white/5 hover:text-white" aria-label="Cerrar sesión">
             <LogOut className="size-4" />
           </button>
@@ -134,6 +138,14 @@ export default function BackofficeLayout({ children }: { children: React.ReactNo
             <NavLink key={item.href} item={item} active={pathname.startsWith(item.href)} />
           ))}
         </nav>
+        <div className="mt-6 flex flex-wrap gap-4 text-sm">
+          <Link href="/seguridad" className="flex items-center gap-2 text-primary">
+            <ShieldCheck className="size-4" /> Verificación en dos pasos
+          </Link>
+          <Link href="/cambiar-contrasena" className="flex items-center gap-2 text-primary">
+            <KeyRound className="size-4" /> Cambiar contraseña
+          </Link>
+        </div>
         <div className="mt-6 flex items-center justify-between">
           <div>
             <p className="text-sm font-medium">{user.name}</p>

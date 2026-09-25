@@ -48,6 +48,16 @@ export const ACTION_LABELS: Record<string, { label: string; tone: BadgeTone }> =
   VIEW_SENSITIVE: { label: 'Vio dato sensible', tone: 'warning' },
   EXPORT: { label: 'Exportó', tone: 'warning' },
   SEED: { label: 'Carga inicial', tone: 'neutral' },
+  OVERBOOKING: { label: 'Creó sobre-turno', tone: 'warning' },
+  RESCHEDULE: { label: 'Reagendó', tone: 'info' },
+  CANCEL: { label: 'Canceló', tone: 'danger' },
+  STATUS_CHANGE: { label: 'Cambió estado', tone: 'info' },
+  REVERT_STATUS: { label: 'Corrigió estado', tone: 'warning' },
+  CONFIRM_ATTENDANCE: { label: 'Confirmó asistencia', tone: 'success' },
+  MFA_ENABLED: { label: 'Activó verificación en 2 pasos', tone: 'success' },
+  MFA_DISABLED: { label: 'Desactivó verificación en 2 pasos', tone: 'warning' },
+  MFA_RESET: { label: 'Reinició verificación en 2 pasos', tone: 'warning' },
+  MFA_FAILED: { label: 'Código 2 pasos incorrecto', tone: 'warning' },
 };
 
 export function actionLabel(action: string) {

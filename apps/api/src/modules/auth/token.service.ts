@@ -10,6 +10,7 @@ export interface AccessTokenClaims {
 
 const ISSUER = 'naturalspa-api';
 const AUDIENCE = 'naturalspa';
+const MFA_AUDIENCE = 'naturalspa-mfa';
 
 /**
  * Access token JWT de corta duración + refresh token opaco rotativo (docs/05-api.md §1.1).
@@ -39,6 +40,27 @@ export class TokenService {
       });
       if (typeof payload.sub !== 'string' || typeof payload.sid !== 'string') return null;
       return { sub: payload.sub, sid: payload.sid };
+    } catch {
+      return null;
+    }
+  }
+
+  /** Token del segundo paso del login (MFA): 5 minutos, solo sirve para POST /auth/login/mfa. */
+  signMfaToken(userId: string): Promise<string> {
+    return new SignJWT({})
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject(userId)
+      .setIssuer(ISSUER)
+      .setAudience(MFA_AUDIENCE)
+      .setIssuedAt()
+      .setExpirationTime('5m')
+      .sign(this.key);
+  }
+
+  async verifyMfaToken(token: string): Promise<string | null> {
+    try {
+      const { payload } = await jwtVerify(token, this.key, { issuer: ISSUER, audience: MFA_AUDIENCE, algorithms: ['HS256'] });
+      return typeof payload.sub === 'string' ? payload.sub : null;
     } catch {
       return null;
     }

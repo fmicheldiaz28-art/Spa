@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, Search } from 'lucide-react';
+import { ArrowRight, Search, ShieldCheck } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { Alert, Badge, Button, EmptyState, Input, Select, Sheet } from '@/components/ui';
@@ -131,8 +131,13 @@ function AuditContent() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <h1 className="text-2xl font-semibold tracking-tight">Auditoría</h1>
-      <p className="mt-1 text-sm text-muted">Quién hizo qué, cuándo y desde dónde. Los registros no se pueden modificar ni borrar.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Auditoría</h1>
+          <p className="mt-1 text-sm text-muted">Quién hizo qué, cuándo y desde dónde. Los registros no se pueden modificar ni borrar.</p>
+        </div>
+        <IntegrityCheck />
+      </div>
 
       <div className="mt-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
         <div className="relative sm:col-span-2">
@@ -322,5 +327,87 @@ export default function AuditPage() {
     <Suspense fallback={null}>
       <AuditContent />
     </Suspense>
+  );
+}
+
+interface Integrity {
+  ok: boolean;
+  checked: number;
+  unsealed: number;
+  headSeq: number;
+  problem: { seq: number; auditId: string | null; message: string } | null;
+  anchor?: { seq: number; matches: boolean };
+}
+
+/**
+ * Verificación del hash encadenado (docs/11 §195). Opcionalmente compara un sello guardado
+ * fuera del sistema, como el que llega en el reporte semanal.
+ */
+function IntegrityCheck() {
+  const [open, setOpen] = useState(false);
+  const [seal, setSeal] = useState('');
+  const [result, setResult] = useState<Integrity | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function verify() {
+    setBusy(true);
+    setError(null);
+    setResult(null);
+    const m = /#?(\d+)\D+([0-9a-f]{16,64})/i.exec(seal.trim());
+    if (seal.trim() && !m) {
+      setError('Pega el sello tal como aparece en el email, por ejemplo: #116 · 0fc7093f8f84ea76');
+      setBusy(false);
+      return;
+    }
+    try {
+      setResult(await api<Integrity>(`/audit-logs/integrity${m ? `?seq=${m[1]}&hash=${m[2]}` : ''}`));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.problem.title : 'No se pudo verificar');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        <ShieldCheck className="size-4" /> Verificar integridad
+      </Button>
+      <Sheet open={open} onClose={() => setOpen(false)} title="Integridad de la auditoría">
+        <div className="space-y-4 text-sm">
+          <p className="text-muted">
+            Cada registro queda sellado con una huella que depende del anterior. Si alguien alterara o borrara un registro, incluso directamente en la base de datos, la
+            verificación lo detecta.
+          </p>
+          <label className="block">
+            <span className="font-medium">Sello del reporte semanal (opcional)</span>
+            <Input className="mt-1" value={seal} onChange={(e) => setSeal(e.target.value)} placeholder="#116 · 0fc7093f8f84ea76" />
+            <span className="mt-1 block text-xs text-muted">Compara con un sello que guardaste en tu email: confirma que el historial anterior no fue reescrito.</span>
+          </label>
+          <Button onClick={() => void verify()} disabled={busy}>
+            {busy ? 'Verificando…' : 'Verificar ahora'}
+          </Button>
+          {error && <Alert>{error}</Alert>}
+          {result && (
+            <Alert tone={result.ok ? 'success' : 'danger'}>
+              {result.ok ? (
+                <>
+                  ✓ Íntegra: {result.checked} registros sellados verificados.
+                  {result.anchor && ` El sello #${result.anchor.seq} coincide.`}
+                  {result.unsealed > 0 && ` ${result.unsealed} registros recientes se sellarán en el próximo minuto.`}
+                </>
+              ) : (
+                <>
+                  ⚠ {result.problem ? `${result.problem.message} (sello #${result.problem.seq}${result.problem.auditId ? `, registro ${result.problem.auditId}` : ''}).` : ''}
+                  {result.anchor && !result.anchor.matches && ` El sello #${result.anchor.seq} no coincide con el guardado: el historial pudo ser reescrito.`} Avisa al
+                  responsable técnico.
+                </>
+              )}
+            </Alert>
+          )}
+        </div>
+      </Sheet>
+    </>
   );
 }

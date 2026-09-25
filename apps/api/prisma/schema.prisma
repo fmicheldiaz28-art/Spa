@@ -257,6 +257,9 @@ model User {
   passwordChangedAt  DateTime?  @map("password_changed_at") @db.Timestamptz
   mfaEnabled         Boolean    @default(false) @map("mfa_enabled")
   mfaSecretEnc       Bytes?     @map("mfa_secret_enc")
+  mfaEnabledAt       DateTime?  @map("mfa_enabled_at") @db.Timestamptz
+  mfaLastStep        BigInt?    @map("mfa_last_step")
+  mfaRecoveryHashes  String[]   @default([]) @map("mfa_recovery_hashes")
   createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz
   createdBy          String?    @map("created_by") @db.Uuid
   updatedAt          DateTime   @default(now()) @map("updated_at") @db.Timestamptz
@@ -893,6 +896,7 @@ model AuditLog {
   sessionId      String?  @map("session_id") @db.Uuid
   prevHash       Bytes?   @map("prev_hash")
   hash           Bytes?
+  sealSeq        BigInt?  @map("seal_seq")
 
   @@id([id, occurredAt])
   @@map("audit_logs")

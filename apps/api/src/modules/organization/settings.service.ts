@@ -14,6 +14,8 @@ export const SETTINGS_DEFAULTS = {
   privacy: { staff_client_visibility_months: 12 },
   // Recordatorios: función de la Fase 2, se activa en Configuración (feature flag, docs/12 §4).
   reminders: { enabled: false, hours_before: [24, 2], channels: ['EMAIL'] as string[] },
+  weekly_report: { enabled: true, send_hour: 8 },
+  security: { require_mfa_for_admin: false },
 };
 
 type Settings = typeof SETTINGS_DEFAULTS;

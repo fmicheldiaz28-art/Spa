@@ -31,6 +31,8 @@ const patchSchema = z.object({
         .optional(),
       no_show: z.object({ grace_minutes: int(0, 120), flag_client_after_count: int(1, 20) }).partial().optional(),
       privacy: z.object({ staff_client_visibility_months: int(1, 60) }).partial().optional(),
+      security: z.object({ require_mfa_for_admin: z.boolean() }).partial().optional(),
+      weekly_report: z.object({ enabled: z.boolean(), send_hour: int(0, 23) }).partial().optional(),
       // Horas antes de la cita en que sale cada aviso (hasta 3). WhatsApp llega con la plantilla aprobada por Meta.
       reminders: z
         .object({ enabled: z.boolean(), hours_before: z.array(int(1, 72)).max(3), channels: z.array(z.enum(['EMAIL', 'WHATSAPP'])).min(1) })

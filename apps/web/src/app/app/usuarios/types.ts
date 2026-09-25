@@ -11,6 +11,7 @@ export interface StaffUser {
   status: 'ACTIVE' | 'INACTIVE' | 'LOCKED' | 'PENDING_VERIFICATION';
   locked: boolean;
   mustChangePassword: boolean;
+  mfaEnabled: boolean;
   lastLoginAt: string | null;
   createdAt: string;
   staff: { id: string; displayName: string; color: string; isBookableOnline: boolean; isActive: boolean } | null;

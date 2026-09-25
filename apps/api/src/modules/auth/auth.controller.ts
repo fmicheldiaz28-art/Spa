@@ -9,6 +9,7 @@ import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
 import { RateLimiter } from '../../common/rate-limiter.js';
 import { isProduction } from '../../config/env.js';
 import { AuthService } from './auth.service.js';
+import { MfaService } from './mfa/mfa.service.js';
 
 const REFRESH_COOKIE = isProduction ? '__Host-ns_rt' : 'ns_rt';
 const REFRESH_COOKIE_PATH = '/api/v1/auth';
@@ -17,6 +18,11 @@ const loginSchema = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email('Email inválido')),
   password: z.string().min(1, 'Ingresa tu contraseña').max(128),
 });
+
+// Código TOTP (6 dígitos) o de recuperación (xxxx-xxxx).
+const mfaCode = z.string().trim().min(6).max(12);
+const mfaLoginSchema = z.object({ mfaToken: z.string().min(20).max(2000), code: mfaCode });
+const mfaDisableSchema = z.object({ password: z.string().min(1).max(128), code: mfaCode });
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1).max(128),
@@ -40,6 +46,7 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly limiter: RateLimiter,
+    private readonly mfa: MfaService,
   ) {}
 
   @Public()
@@ -53,9 +60,54 @@ export class AuthController {
     // docs/05-api.md §3: 5/min y 20/h por IP + email
     this.limiter.hit(`login:m:${req.ip}:${dto.email}`, 5, 60_000);
     this.limiter.hit(`login:h:${req.ip}:${dto.email}`, 20, 3_600_000);
-    const issued = await this.auth.login(dto.email, dto.password);
+    const result = await this.auth.login(dto.email, dto.password);
+    if (result.kind === 'mfa') return { mfaRequired: true, mfaToken: result.mfaToken };
+    this.setRefreshCookie(res, result.refreshToken, result.refreshExpiresAt);
+    return { accessToken: result.accessToken, expiresIn: result.expiresIn };
+  }
+
+  @Public()
+  @Post('login/mfa')
+  @HttpCode(200)
+  async loginMfa(@Req() req: Request, @Body(new ZodValidationPipe(mfaLoginSchema)) dto: z.infer<typeof mfaLoginSchema>, @Res({ passthrough: true }) res: Response) {
+    this.limiter.hit(`login-mfa:m:${req.ip}`, 10, 60_000);
+    const issued = await this.auth.loginMfa(dto.mfaToken, dto.code);
     this.setRefreshCookie(res, issued.refreshToken, issued.refreshExpiresAt);
     return { accessToken: issued.accessToken, expiresIn: issued.expiresIn };
+  }
+
+  // ------------------------------------------------------------ verificación en dos pasos
+
+  @Authenticated()
+  @AllowPendingPassword()
+  @Get('mfa')
+  mfaStatus(@CurrentUser() user: AuthUser) {
+    return this.mfa.status(user);
+  }
+
+  @Authenticated()
+  @AllowPendingPassword()
+  @Post('mfa/setup')
+  @HttpCode(200)
+  mfaSetup(@CurrentUser() user: AuthUser) {
+    return this.mfa.setup(user);
+  }
+
+  @Authenticated()
+  @AllowPendingPassword()
+  @Post('mfa/enable')
+  @HttpCode(200)
+  mfaEnable(@CurrentUser() user: AuthUser, @Body(new ZodValidationPipe(z.object({ code: z.string().trim().regex(/^\d{6}$/, 'Código de 6 dígitos') }))) dto: { code: string }) {
+    this.limiter.hit(`mfa-enable:${user.id}`, 10, 60_000);
+    return this.mfa.enable(user, dto.code);
+  }
+
+  @Authenticated()
+  @Post('mfa/disable')
+  @HttpCode(204)
+  async mfaDisable(@CurrentUser() user: AuthUser, @Body(new ZodValidationPipe(mfaDisableSchema)) dto: z.infer<typeof mfaDisableSchema>) {
+    this.limiter.hit(`mfa-disable:${user.id}`, 5, 60_000);
+    await this.mfa.disable(user, dto.password, dto.code);
   }
 
   @Public()

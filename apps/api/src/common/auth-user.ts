@@ -13,6 +13,8 @@ export interface AuthUser {
   clientId: string | null;
   sessionId: string;
   mustChangePassword: boolean;
+  /** La política exige verificación en dos pasos y aún no la configuró. */
+  mfaSetupRequired: boolean;
 }
 
 export function can(user: AuthUser, permission: Permission): boolean {
