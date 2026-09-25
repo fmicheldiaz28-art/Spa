@@ -6,6 +6,7 @@ import { IdempotencyStore } from '../../common/idempotency.js';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
 import { RateLimiter } from '../../common/rate-limiter.js';
 import { dateSchema, emailSchema, nameSchema, phoneSchema } from '../../common/validation.js';
+import { waitlistEntrySchema } from '../waitlist/waitlist.controller.js';
 import { BookingService } from './booking.service.js';
 
 const staffParam = z
@@ -27,6 +28,14 @@ const confirmSchema = z.object({
   lastName: z.string().trim().max(60).default(''),
   phone: phoneSchema,
   notes: z.string().trim().max(500).nullable().optional(),
+  privacyConsent: z.boolean(),
+  marketingOptIn: z.boolean().optional(),
+});
+
+const joinWaitlistSchema = waitlistEntrySchema.extend({
+  firstName: nameSchema,
+  lastName: z.string().trim().max(60).default(''),
+  phone: phoneSchema,
   privacyConsent: z.boolean(),
   marketingOptIn: z.boolean().optional(),
 });
@@ -126,6 +135,23 @@ export class BookingController {
   @HttpCode(200)
   rescheduleByLink(@Param('token', new ZodValidationPipe(manageToken)) token: string, @Body(new ZodValidationPipe(z.object({ startAt: instant }))) dto: { startAt: Date }) {
     return this.booking.reschedule({ manageToken: token }, dto.startAt);
+  }
+
+  @Post('waitlist')
+  joinWaitlist(@Req() req: Request, @Headers('authorization') auth: string | undefined, @Body(new ZodValidationPipe(joinWaitlistSchema)) dto: z.infer<typeof joinWaitlistSchema>) {
+    this.limiter.hit(`waitlist:${req.ip}`, 10, 3_600_000);
+    return this.booking.joinWaitlist(bearer(auth), dto);
+  }
+
+  @Get('me/waitlist')
+  myWaitlist(@Headers('authorization') auth?: string) {
+    return this.booking.myWaitlist(bearer(auth));
+  }
+
+  @Post('me/waitlist/:id/cancel')
+  @HttpCode(200)
+  leaveWaitlist(@Headers('authorization') auth: string | undefined, @Param('id', ParseUUIDPipe) id: string) {
+    return this.booking.leaveWaitlist(bearer(auth), id);
   }
 
   @Get('me/appointments')

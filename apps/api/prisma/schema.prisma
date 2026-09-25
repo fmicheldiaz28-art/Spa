@@ -39,6 +39,16 @@ enum AppointmentStatus {
   @@map("appointment_status")
 }
 
+enum WaitlistStatus {
+  ACTIVA
+  NOTIFICADA
+  CONVERTIDA
+  VENCIDA
+  CANCELADA
+
+  @@map("waitlist_status")
+}
+
 enum AppointmentSource {
   ADMIN
   ONLINE
@@ -160,6 +170,7 @@ model Organization {
   packages          Package[]
   clients           Client[]
   appointments      Appointment[]
+  waitlist          WaitlistEntry[]
 
   @@map("organizations")
 }
@@ -408,6 +419,7 @@ model StaffProfile {
   scheduleExceptions ScheduleException[]
   staffServices      StaffService[]
   appointmentItems   AppointmentItem[]
+  waitlist           WaitlistEntry[]
   preferredByClients Client[]            @relation("PreferredStaff")
 
   @@map("staff_profiles")
@@ -505,6 +517,7 @@ model Service {
   staffServices    StaffService[]
   packageItems     PackageItem[]
   appointmentItems AppointmentItem[]
+  waitlist         WaitlistEntry[]
 
   @@unique([organizationId, slug])
   @@map("services")
@@ -608,6 +621,7 @@ model Client {
   mergedFrom     Client[]        @relation("ClientMerge")
   consents       ClientConsent[]
   appointments   Appointment[]
+  waitlist       WaitlistEntry[]
   payments       Payment[]
 
   @@map("clients")
@@ -900,4 +914,32 @@ model AuditLog {
 
   @@id([id, occurredAt])
   @@map("audit_logs")
+}
+
+/// Lista de espera (Fase 2): clientas que esperan un horario en un día lleno.
+model WaitlistEntry {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  clientId       String         @map("client_id") @db.Uuid
+  serviceId      String         @map("service_id") @db.Uuid
+  staffId        String?        @map("staff_id") @db.Uuid
+  date           DateTime       @db.Date
+  timeFrom       DateTime?      @map("time_from") @db.Time(6)
+  timeTo         DateTime?      @map("time_to") @db.Time(6)
+  status         WaitlistStatus @default(ACTIVA)
+  source         String
+  notes          String?
+  notifiedAt     DateTime?      @map("notified_at") @db.Timestamptz
+  notifyCount    Int            @default(0) @map("notify_count")
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  createdBy      String?        @map("created_by") @db.Uuid
+  updatedAt      DateTime       @default(now()) @map("updated_at") @db.Timestamptz
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  client       Client        @relation(fields: [clientId], references: [id])
+  service      Service       @relation(fields: [serviceId], references: [id])
+  staff        StaffProfile? @relation(fields: [staffId], references: [id])
+
+  @@index([organizationId, date], map: "ix_waitlist_open")
+  @@map("waitlist_entries")
 }

@@ -345,7 +345,7 @@ export function NewAppointmentSheet({
 }
 
 /** Buscador de clientas con alta rápida (nombre + teléfono). */
-function ClientPicker({ value, onChange }: { value: ClientFull | null; onChange: (c: ClientFull | null) => void }) {
+export function ClientPicker({ value, onChange }: { value: ClientFull | null; onChange: (c: ClientFull | null) => void }) {
   const [q, setQ] = useState('');
   const [results, setResults] = useState<ClientFull[]>([]);
   const [creating, setCreating] = useState(false);

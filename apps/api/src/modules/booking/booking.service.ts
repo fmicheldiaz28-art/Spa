@@ -16,6 +16,7 @@ import { pickLeastBusy } from '../availability/domain/availability.engine.js';
 import { addDays, localDate, utcToLocalMinutes } from '../availability/domain/time.js';
 import { HoldStore } from '../availability/hold-store.js';
 import { EventsService } from '../events/events.service.js';
+import { WaitlistService } from '../waitlist/waitlist.service.js';
 import { ClientTokenService } from './client-token.service.js';
 
 interface Settings {
@@ -28,6 +29,19 @@ interface Settings {
     hold_ttl_sec?: number;
   };
   cancellation?: { client_can_cancel_until_hours?: number; client_can_reschedule_until_hours?: number; max_reschedules_per_appointment?: number };
+}
+
+export interface JoinWaitlistInput {
+  serviceId: string;
+  staffId?: string | null;
+  date: string;
+  timeFrom?: number | null;
+  timeTo?: number | null;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  privacyConsent: boolean;
+  marketingOptIn?: boolean;
 }
 
 export interface ConfirmInput {
@@ -82,6 +96,7 @@ export class BookingService {
     private readonly mail: MailService,
     private readonly tokens: ClientTokenService,
     private readonly events: EventsService,
+    private readonly waitlist: WaitlistService,
   ) {}
 
   /** `requireBooking = false` para la gestión de citas ya existentes (siguen funcionando con reservas desactivadas). */
@@ -348,6 +363,40 @@ export class BookingService {
     return { ...this.publicDto(appointment, branch.timezone, settings), manageToken };
   }
 
+  // ------------------------------------------------------------------ lista de espera
+
+  /** La clienta (email verificado) se anota para un día sin horarios que le sirvan. */
+  async joinWaitlist(clientToken: string | undefined, input: JoinWaitlistInput) {
+    const identity = await this.tokens.verify(clientToken);
+    if (!identity) throw new AppException(401, 'UNVERIFIED', 'Verifica tu email para continuar');
+    if (!input.privacyConsent) throw Errors.validation([{ field: 'privacyConsent', code: 'REQUIRED', message: 'Debes aceptar la política de privacidad' }]);
+    const { organizationId, branch, settings } = await this.ctx();
+    this.assertWaitlistDate(input.date, branch.timezone, settings);
+    const service = await this.availability.serviceWithStaff(organizationId, branch.id, input.serviceId, input.staffId ?? undefined, true);
+    if (!service.staffServices.length) throw new AppException(422, 'NO_STAFF', 'Ese servicio no está disponible online');
+    const client = await this.findOrCreateClient(organizationId, identity.email, input);
+    return this.waitlist.create(null, organizationId, { ...input, clientId: client.id, notes: null }, 'ONLINE');
+  }
+
+  async myWaitlist(clientToken: string | undefined) {
+    const identity = await this.tokens.verify(clientToken);
+    if (!identity) throw new AppException(401, 'UNVERIFIED', 'Verifica tu email para continuar');
+    return this.waitlist.forClientEmail(identity.organizationId, identity.email);
+  }
+
+  async leaveWaitlist(clientToken: string | undefined, id: string) {
+    const identity = await this.tokens.verify(clientToken);
+    if (!identity) throw new AppException(401, 'UNVERIFIED', 'Verifica tu email para continuar');
+    return this.waitlist.cancelForClientEmail(identity.organizationId, identity.email, id);
+  }
+
+  private assertWaitlistDate(date: string, tz: string, settings: Settings) {
+    const today = localDate(new Date(), tz);
+    const maxDays = settings.booking?.max_advance_days ?? 60;
+    if (date < today) throw new AppException(422, 'PAST_DATE', 'Elige un día de hoy en adelante');
+    if (date > addDays(today, maxDays)) throw new AppException(422, 'TOO_FAR', `Puedes anotarte hasta ${maxDays} días adelante`);
+  }
+
   // ------------------------------------------------------------------ autogestión
 
   /** Acepta el enlace del email de confirmación (token opaco) o el firmado de los recordatorios (JWT). */
@@ -551,7 +600,7 @@ export class BookingService {
   }
 
   /** Busca la ficha por email (o teléfono); si existe no pisa sus datos, solo completa vacíos. */
-  private async findOrCreateClient(organizationId: string, email: string, input: ConfirmInput) {
+  private async findOrCreateClient(organizationId: string, email: string, input: Pick<ConfirmInput, 'firstName' | 'lastName' | 'phone' | 'marketingOptIn'>) {
     const existing =
       (await this.prisma.client.findFirst({ where: { organizationId, email, deletedAt: null, mergedIntoId: null } })) ??
       (await this.prisma.client.findFirst({ where: { organizationId, phoneE164: input.phone, deletedAt: null, mergedIntoId: null } }));

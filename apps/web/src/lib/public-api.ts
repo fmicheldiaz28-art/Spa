@@ -59,6 +59,17 @@ export interface PublicAppointment {
   manageToken?: string;
 }
 
+/** Espera de la clienta (lista de espera). */
+export interface PublicWaitlistEntry {
+  id: string;
+  date: string;
+  timeFrom: string | null;
+  timeTo: string | null;
+  status: 'ACTIVA' | 'NOTIFICADA' | 'CONVERTIDA' | 'VENCIDA' | 'CANCELADA';
+  service: { id: string; name: string; durationMin: number };
+  staff: { id: string; name: string } | null;
+}
+
 const CLIENT_TOKEN_KEY = 'ns_client_token';
 
 /** El token de clienta vive en sessionStorage: se borra al cerrar el navegador. */

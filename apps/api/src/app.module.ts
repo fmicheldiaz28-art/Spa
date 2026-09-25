@@ -14,6 +14,7 @@ import { HealthController } from './modules/health/health.controller.js';
 import { OrganizationModule } from './modules/organization/organization.module.js';
 import { PaymentsModule } from './modules/payments/payments.module.js';
 import { ReportsModule } from './modules/reports/reports.module.js';
+import { WaitlistModule } from './modules/waitlist/waitlist.module.js';
 import { RemindersModule } from './modules/reminders/reminders.module.js';
 import { WeeklyReportModule } from './modules/weekly-report/weekly-report.module.js';
 import { SchedulingModule } from './modules/scheduling/scheduling.module.js';
@@ -36,6 +37,7 @@ import { UsersModule } from './modules/users/users.module.js';
     DashboardModule,
     BookingModule,
     ReportsModule,
+    WaitlistModule,
     RemindersModule,
     WeeklyReportModule,
     OrganizationModule,

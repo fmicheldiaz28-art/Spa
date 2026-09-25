@@ -71,6 +71,7 @@ export const PERMISSION_CATALOG = [
   p('appointments.revert_status', 'Corregir estados finales de citas', true),
   p('appointments.delete', 'Eliminar (soft) y restaurar citas', true),
   p('appointments.overbook', 'Forzar sobre-turno', true),
+  p('waitlist.manage', 'Gestionar la lista de espera'),
   // Cobros
   p('payments.read_all', 'Ver cobros', true),
   p('payments.create', 'Registrar cobros'),

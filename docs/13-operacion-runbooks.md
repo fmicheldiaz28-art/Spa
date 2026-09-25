@@ -13,6 +13,7 @@ El API ejecuta estos procesos dentro del mismo contenedor. Todos son **idempoten
 | Recordatorios a clientas | `REMINDERS_INTERVAL_SEC` (60 s) | Programa y envía los avisos por email (24 h y 2 h, configurable) | `0` lo apaga | Tabla `notifications` (`template_code LIKE 'REMINDER_%'`) |
 | Reporte semanal | cada 10 min (envía los lunes) | Resumen de la semana anterior a las administradoras, con el último sello de auditoría | `WEEKLY_REPORT_ENABLED=false` lo apaga | `notifications` (`WEEKLY_REPORT`) |
 | Sellado de auditoría | `AUDIT_SEAL_INTERVAL_SEC` (60 s) | Encadena el hash de cada registro de `audit_logs` | `0` lo apaga | `GET /api/v1/audit-logs/integrity` |
+| Lista de espera | al cambiar una cita u horario (5 s después) y cada 10 min | Cierra esperas vencidas o ya agendadas y avisa por email cuando se libera un horario compatible (como máximo cada 3 h por espera) | — | `waitlist_entries`, `notifications` (`WAITLIST_SLOT`) |
 | Tiempo real (SSE) | continuo | Avisa a las pantallas abiertas que algo cambió | — | `GET /api/v1/events` |
 
 > Con varias instancias del API se pueden dejar todos activos en todas: el índice único de `notifications` evita envíos duplicados y `seal_audit_logs()` usa un *advisory lock*. Aun así, si se quiere un único "worker", basta con poner `REMINDERS_INTERVAL_SEC=0`, `WEEKLY_REPORT_ENABLED=false` y `AUDIT_SEAL_INTERVAL_SEC=0` en las demás.

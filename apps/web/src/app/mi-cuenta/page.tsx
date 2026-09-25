@@ -6,12 +6,22 @@ import { Brand } from '@/components/brand';
 import { ReservationCard } from '@/components/booking/reservation-card';
 import { Alert, Button, EmptyState, Field, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
-import { clientSession, type PublicAppointment, publicApi } from '@/lib/public-api';
+import { formatLongDay } from '@/lib/appointments';
+import { clientSession, type PublicAppointment, publicApi, type PublicWaitlistEntry } from '@/lib/public-api';
+
+const WAITLIST_STATUS: Record<PublicWaitlistEntry['status'], string> = {
+  ACTIVA: 'Esperando un horario',
+  NOTIFICADA: 'Te avisamos: ¡hay lugar!',
+  CONVERTIDA: 'Reservada',
+  VENCIDA: 'Venció',
+  CANCELADA: 'Cancelada',
+};
 
 /** "Mis reservas": acceso con email verificado por código, sin contraseña (docs/06-modulos.md M9). */
 export default function MyAccountPage() {
   const [token, setToken] = useState<string | null>(null);
   const [appointments, setAppointments] = useState<PublicAppointment[] | null>(null);
+  const [waitlist, setWaitlist] = useState<PublicWaitlistEntry[]>([]);
   const [email, setEmail] = useState('');
   const [codeSent, setCodeSent] = useState(false);
   const [code, setCode] = useState('');
@@ -20,7 +30,12 @@ export default function MyAccountPage() {
 
   const load = useCallback(async (t: string) => {
     try {
-      setAppointments(await publicApi<PublicAppointment[]>('/me/appointments', { clientToken: t }));
+      const [a, w] = await Promise.all([
+        publicApi<PublicAppointment[]>('/me/appointments', { clientToken: t }),
+        publicApi<PublicWaitlistEntry[]>('/me/waitlist', { clientToken: t }).catch(() => []),
+      ]);
+      setAppointments(a);
+      setWaitlist(w);
     } catch {
       clientSession.clear();
       setToken(null);
@@ -65,6 +80,20 @@ export default function MyAccountPage() {
     }
   }
 
+  async function leaveWaitlist(id: string) {
+    if (!token) return;
+    setBusy(true);
+    try {
+      const updated = await publicApi<PublicWaitlistEntry>(`/me/waitlist/${id}/cancel`, { method: 'POST', clientToken: token });
+      setWaitlist((list) => list.map((w) => (w.id === id ? { ...w, status: updated.status } : w)));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.problem.title : 'No se pudo salir de la lista');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const openWaitlist = waitlist.filter((w) => w.status === 'ACTIVA' || w.status === 'NOTIFICADA');
   const now = new Date();
   const upcoming = (appointments ?? []).filter((a) => new Date(a.startAt) > now).reverse();
   const past = (appointments ?? []).filter((a) => new Date(a.startAt) <= now);
@@ -129,11 +158,44 @@ export default function MyAccountPage() {
                 />
               ))}
             </section>
+            {openWaitlist.length > 0 && (
+              <section className="space-y-3">
+                <h2 className="text-sm font-semibold text-muted uppercase">En lista de espera</h2>
+                {openWaitlist.map((w) => (
+                  <article key={w.id} className="flex items-start justify-between gap-3 rounded-2xl border border-border bg-surface p-4">
+                    <div className="text-sm">
+                      <p className="font-medium">{w.service.name}</p>
+                      <p className="first-letter:uppercase">
+                        {formatLongDay(w.date)}
+                        {w.timeFrom && ` · ${w.timeFrom < '13:00' ? 'mañana' : 'tarde'}`}
+                        {w.staff && ` · con ${w.staff.name}`}
+                      </p>
+                      <p className={`mt-1 ${w.status === 'NOTIFICADA' ? 'font-medium text-success' : 'text-muted'}`}>{WAITLIST_STATUS[w.status]}</p>
+                      {w.status === 'NOTIFICADA' && (
+                        <Link href={`/reservar?servicio=${w.service.id}&fecha=${w.date}${w.staff ? `&con=${w.staff.id}` : ''}`} className="mt-1 inline-block text-primary hover:underline">
+                          Reservar ahora →
+                        </Link>
+                      )}
+                    </div>
+                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => void leaveWaitlist(w.id)}>
+                      Salir
+                    </Button>
+                  </article>
+                ))}
+              </section>
+            )}
             {past.length > 0 && (
               <section className="space-y-3">
                 <h2 className="text-sm font-semibold text-muted uppercase">Historial</h2>
                 {past.map((a) => (
-                  <ReservationCard key={a.id} appointment={a} actionBase={`/me/appointments/${a.id}`} clientToken={token} onChanged={() => undefined} />
+                  <div key={a.id}>
+                    <ReservationCard appointment={a} actionBase={`/me/appointments/${a.id}`} clientToken={token} onChanged={() => undefined} />
+                    {a.status === 'COMPLETADA' && (
+                      <Link href={`/reservar?servicio=${a.service.id}&con=${a.staff.id}`} className="mt-1 inline-block px-1 text-sm text-primary hover:underline">
+                        Reservar de nuevo
+                      </Link>
+                    )}
+                  </div>
                 ))}
               </section>
             )}

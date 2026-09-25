@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Brand } from '@/components/brand';
 import { MonthCalendar } from '@/components/booking/month-calendar';
+import { WaitlistJoin } from '@/components/booking/waitlist-join';
 import { Alert, Button, Field, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { formatLongDay } from '@/lib/appointments';
@@ -50,12 +51,30 @@ export default function BookingPage() {
   const [booked, setBooked] = useState<PublicAppointment | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [waitlistOpen, setWaitlistOpen] = useState(false);
 
   useEffect(() => {
     void Promise.all([publicApi<PublicInfo>('/booking/info'), publicApi<PublicService[]>('/booking/catalog')])
       .then(([i, s]) => {
         setInfo(i);
         setServices(s);
+        // Enlaces directos: aviso de lista de espera (/reservar?servicio=…&fecha=…&con=…) y
+        // "Reservar de nuevo" desde Mis reservas (sin fecha: abre el calendario).
+        const params = new URLSearchParams(window.location.search);
+        const linked = s.find((x) => x.id === params.get('servicio'));
+        if (linked) {
+          const con = params.get('con');
+          const linkedDate = params.get('fecha');
+          setService(linked);
+          setStaffId(con && linked.staff.some((x) => x.id === con) ? con : linked.staff.length === 1 ? linked.staff[0]!.id : 'any');
+          if (linkedDate && /^\d{4}-\d{2}-\d{2}$/.test(linkedDate)) {
+            setDate(linkedDate);
+            setMonth(linkedDate.slice(0, 7));
+            setStep(4);
+          } else {
+            setStep(3);
+          }
+        }
       })
       .catch((err: unknown) => setError(problemText(err)));
   }, []);
@@ -111,10 +130,16 @@ export default function BookingPage() {
       void publicApi(`/booking/holds/${hold.holdId}`, { method: 'DELETE' }).catch(() => undefined);
       setHold(null);
     }
+    if (waitlistOpen) return setWaitlistOpen(false);
     setStep((s) => Math.max(1, s - 1) as Step);
   };
 
   const today = todayLocal();
+  const maxDate = useMemo(() => {
+    const d = new Date(`${today}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + (info?.policy.maxAdvanceDays ?? 60));
+    return d.toISOString().slice(0, 10);
+  }, [today, info]);
   const maxMonth = useMemo(() => {
     const d = new Date(`${today}T12:00:00Z`);
     d.setUTCDate(d.getUTCDate() + (info?.policy.maxAdvanceDays ?? 60));
@@ -190,7 +215,18 @@ export default function BookingPage() {
           </section>
         )}
 
-        {step === 3 && service && (
+        {waitlistOpen && service && (step === 3 || step === 4) && (
+          <WaitlistJoin
+            service={service}
+            staffId={staffId}
+            initialDate={step === 4 ? date : null}
+            minDate={today}
+            maxDate={maxDate}
+            onClose={() => setWaitlistOpen(false)}
+          />
+        )}
+
+        {step === 3 && service && !waitlistOpen && (
           <section>
             <h1 className="text-xl font-semibold">Elige el día</h1>
             <p className="mt-1 text-sm text-muted">
@@ -211,16 +247,31 @@ export default function BookingPage() {
                 }}
               />
             </div>
+            <button onClick={() => setWaitlistOpen(true)} className="mt-4 w-full text-center text-sm text-primary hover:underline">
+              ¿No hay lugar el día que quieres? Anótate en la lista de espera
+            </button>
           </section>
         )}
 
-        {step === 4 && service && date && (
+        {step === 4 && service && date && !waitlistOpen && (
           <section>
             <h1 className="text-xl font-semibold first-letter:uppercase">{formatLongDay(date)}</h1>
             <p className="mt-1 text-sm text-muted">Elige la hora · {service.durationMin} min</p>
             <div className="mt-5 space-y-4">
               {!slots && <p className="text-sm text-muted">Buscando horarios…</p>}
-              {slots?.length === 0 && <p className="text-sm text-muted">Ya no quedan horarios ese día. Prueba otro día.</p>}
+              {slots?.length === 0 && (
+                <div className="rounded-2xl border border-border bg-surface p-4 text-sm">
+                  <p className="text-muted">Ya no quedan horarios ese día.</p>
+                  <Button className="mt-3 w-full" variant="secondary" onClick={() => setWaitlistOpen(true)}>
+                    Avísame si se libera un horario
+                  </Button>
+                </div>
+              )}
+              {!!slots?.length && (
+                <button onClick={() => setWaitlistOpen(true)} className="text-sm text-primary hover:underline">
+                  ¿Ninguna hora te sirve? Avísame si se libera otra
+                </button>
+              )}
               {slots &&
                 [
                   { label: 'Mañana', items: slots.filter((s) => s.time < '13:00') },
