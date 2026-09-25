@@ -1,5 +1,18 @@
 {
   "$schema": "https://turborepo.com/schema.json",
+  "globalPassThroughEnv": [
+    "NODE_ENV",
+    "DATABASE_URL",
+    "DATABASE_POOL_MAX",
+    "JWT_SECRET",
+    "MFA_ENCRYPTION_KEY",
+    "WEB_ORIGIN",
+    "API_URL",
+    "SMTP_URL",
+    "MAIL_FROM",
+    "SEED_DEMO",
+    "NEXT_TELEMETRY_DISABLED"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
