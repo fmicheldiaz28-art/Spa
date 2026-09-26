@@ -11,8 +11,9 @@ import { env } from './config/env.js';
 
 const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-// La web llega a través del proxy de Next.js en la misma máquina: confiar en X-Forwarded-For local.
-app.set('trust proxy', 'loopback');
+// La web llega a través del proxy de Next.js: confiar en X-Forwarded-For solo desde esos saltos
+// (misma máquina en local; red privada en la nube, p. ej. TRUST_PROXY='loopback, uniquelocal, 100.64.0.0/10').
+app.set('trust proxy', env.TRUST_PROXY);
 app.use(requestContextMiddleware);
 app.use(helmet());
 app.use(cookieParser());

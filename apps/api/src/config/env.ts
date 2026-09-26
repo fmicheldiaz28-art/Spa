@@ -9,6 +9,8 @@ const schema = z.object({
   JWT_SECRET: z.string().min(32, 'JWT_SECRET debe tener al menos 32 caracteres'),
   ACCESS_TOKEN_TTL_SEC: z.coerce.number().int().positive().default(900),
   REFRESH_TOKEN_TTL_HOURS: z.coerce.number().int().positive().default(8),
+  // Saltos de proxy de confianza para obtener la IP real de la clienta (límites de uso y auditoría).
+  TRUST_PROXY: z.string().default('loopback'),
   WEB_ORIGIN: z.string().default('http://localhost:3000'),
   SMTP_URL: z.string().optional(),
   MAIL_FROM: z.string().default('NaturalSpa <no-responder@naturalspa.bo>'),
