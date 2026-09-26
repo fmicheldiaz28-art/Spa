@@ -1,11 +1,13 @@
 'use client';
 
-import { AlertTriangle, ArrowLeft, Eye, MessageCircle, Pencil } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CalendarDays, Eye, MessageCircle, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
-import { ActionMenu, Alert, Button, Dialog, Field, Input } from '@/components/ui';
+import { AppointmentSheet } from '@/components/agenda/appointment-sheet';
+import { ActionMenu, Alert, Badge, Button, Dialog, Field, Input } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
+import { type Appointment, localDateOf, STATUS, timeOf } from '@/lib/appointments';
 import { useAuth } from '@/lib/auth';
 import { formatDateTime, initials } from '@/lib/format';
 import { type Client, type ClientFull, formatMoney } from '@/lib/types';
@@ -155,9 +157,7 @@ export default function ClientDetailPage() {
         )}
       </div>
 
-      <section className="mt-6 rounded-xl border border-dashed border-border p-5 text-sm text-muted">
-        El historial de citas aparecerá aquí cuando esté disponible la agenda (próximo sprint).
-      </section>
+      <ClientAppointments clientId={client.id} />
 
       {!client.restricted && (
         <ClientFormSheet
@@ -216,6 +216,90 @@ function Stats({ client }: { client: ClientFull }) {
       ))}
       <p className="col-span-full text-xs text-muted">Clienta desde {formatDateTime(client.createdAt).slice(0, 10)}</p>
     </div>
+  );
+}
+
+const HISTORY_PAGE = 10;
+
+/** Historial de citas de la clienta (la especialista ve solo las suyas: el alcance lo aplica la API). */
+function ClientAppointments({ clientId }: { clientId: string }) {
+  const [rows, setRows] = useState<Appointment[] | null>(null);
+  const [shown, setShown] = useState(HISTORY_PAGE);
+  const [selected, setSelected] = useState<Appointment | null>(null);
+
+  const load = useCallback(async () => {
+    const q = new URLSearchParams({ from: '2000-01-01T00:00:00Z', to: '2100-01-01T00:00:00Z', clientId });
+    try {
+      setRows((await api<Appointment[]>(`/appointments?${q}`)).reverse());
+    } catch {
+      setRows([]);
+    }
+  }, [clientId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const now = Date.now();
+  const upcoming = rows?.filter((a) => new Date(a.startAt).getTime() > now && ['PENDIENTE', 'CONFIRMADA', 'EN_CURSO'].includes(a.status)) ?? [];
+  const rest = rows?.filter((a) => !upcoming.includes(a)) ?? [];
+
+  const row = (a: Appointment) => (
+    <li key={a.id}>
+      <button onClick={() => setSelected(a)} className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-bg">
+        <span className="tabular w-28 shrink-0 text-muted">
+          {localDateOf(a.startAt).split('-').reverse().join('/')} {timeOf(a.startAt)}
+        </span>
+        <span className="min-w-0 flex-1 truncate">
+          {a.items.map((i) => i.serviceName).join(' + ')}
+          <span className="text-muted"> · {[...new Set(a.items.map((i) => i.staff.displayName))].join(', ')}</span>
+        </span>
+        {a.total && <span className="tabular hidden text-muted sm:inline">{formatMoney(a.total)}</span>}
+        <Badge tone={STATUS[a.status].tone}>{STATUS[a.status].label}</Badge>
+      </button>
+    </li>
+  );
+
+  return (
+    <section className="mt-6 rounded-xl border border-border bg-surface">
+      <h2 className="flex items-center gap-2 border-b border-border px-4 py-3 text-sm font-semibold">
+        <CalendarDays className="size-4 text-primary" /> Citas
+      </h2>
+      {rows === null ? (
+        <p className="px-4 py-3 text-sm text-muted">Cargando…</p>
+      ) : rows.length === 0 ? (
+        <p className="px-4 py-3 text-sm text-muted">Todavía no tiene citas.</p>
+      ) : (
+        <>
+          {upcoming.length > 0 && (
+            <>
+              <p className="px-4 pt-3 text-xs font-semibold text-muted uppercase">Próximas</p>
+              <ul className="divide-y divide-border">{[...upcoming].reverse().map(row)}</ul>
+            </>
+          )}
+          {rest.length > 0 && (
+            <>
+              <p className="px-4 pt-3 text-xs font-semibold text-muted uppercase">Historial</p>
+              <ul className="divide-y divide-border">{rest.slice(0, shown).map(row)}</ul>
+              {rest.length > shown && (
+                <div className="border-t border-border px-4 py-2">
+                  <Button size="sm" variant="ghost" onClick={() => setShown((n) => n + HISTORY_PAGE)}>
+                    Ver más ({rest.length - shown})
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+      {selected && (
+        <AppointmentSheet
+          appointment={selected}
+          onClose={() => setSelected(null)}
+          onChanged={() => void load()}
+        />
+      )}
+    </section>
   );
 }
 
