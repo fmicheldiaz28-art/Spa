@@ -16,6 +16,10 @@ const schema = z.object({
   REMINDERS_INTERVAL_SEC: z.coerce.number().int().min(0).default(60),
   // Clave AES-256 (32 bytes en base64) para cifrar los secretos MFA. Sin ella se deriva de JWT_SECRET.
   MFA_ENCRYPTION_KEY: z.string().optional(),
+  // Notificaciones push (Web Push). Sin estas claves quedan desactivadas. Generar con: pnpm push:keys
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default('mailto:soporte@naturalspa.bo'),
   // Sellado de la auditoría con hash encadenado; 0 lo apaga en esta instancia.
   AUDIT_SEAL_INTERVAL_SEC: z.coerce.number().int().min(0).default(60),
   // Reporte semanal por email a administración (los lunes). 'false' lo apaga en esta instancia.

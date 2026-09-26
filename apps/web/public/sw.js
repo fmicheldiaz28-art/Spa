@@ -1,7 +1,7 @@
 // Service worker de NaturalSpa (PWA, docs/09-ux-ui.md): instalable y con aviso sin conexión.
 // Regla de privacidad: NUNCA se guardan en caché respuestas del API ni páginas con datos;
 // solo archivos estáticos con hash y la página de "sin conexión".
-const VERSION = 'ns-v1';
+const VERSION = 'ns-v2';
 const STATIC = `${VERSION}-static`;
 const OFFLINE_URL = '/offline.html';
 
@@ -51,4 +51,38 @@ self.addEventListener('fetch', (event) => {
       ),
     );
   }
+});
+
+// Notificaciones push (Fase 2): el API envía { title, body, url, tag } cifrado (RFC 8291).
+self.addEventListener('push', (event) => {
+  let data = { title: 'NaturalSpa', body: '', url: '/app' };
+  try {
+    data = { ...data, ...event.data.json() };
+  } catch {
+    /* mensaje sin contenido: aviso genérico */
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: data.tag,
+      renotify: !!data.tag,
+      data: { url: data.url },
+    }),
+  );
+});
+
+// Al tocar la notificación: enfoca la app si ya está abierta; si no, la abre en la pantalla indicada.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = new URL(event.notification.data?.url || '/app', self.location.origin);
+  if (url.origin !== self.location.origin) return;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+      const win = wins.find((w) => new URL(w.url).origin === url.origin);
+      if (win) return win.navigate(url.href).then((w) => (w ?? win).focus());
+      return self.clients.openWindow(url.href);
+    }),
+  );
 });

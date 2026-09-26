@@ -12,6 +12,7 @@
     "test": "prisma generate && vitest run",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed/index.ts",
+    "push:keys": "node scripts/vapid-keys.mjs",
     "db:reset": "prisma migrate reset --force && tsx prisma/seed/index.ts"
   },
   "dependencies": {

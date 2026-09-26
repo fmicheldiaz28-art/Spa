@@ -4,6 +4,7 @@ import { AlertTriangle, CalendarHeart } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { AppointmentSheet } from '@/components/agenda/appointment-sheet';
+import { PushToggle } from '@/components/push-toggle';
 import { Alert, Badge, Button } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { ACTION_LABELS, type Appointment, type CalendarData, STATUS, timeOf } from '@/lib/appointments';
@@ -65,6 +66,9 @@ export default function MyDayPage() {
         {next && ` · Próxima: ${timeOf(next.startAt)}`}
       </p>
 
+      <div className="mt-4">
+        <PushToggle compact />
+      </div>
       {error && <div className="mt-4"><Alert>{error}</Alert></div>}
 
       {data && list.length === 0 && (

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import QRCode from 'qrcode';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Brand } from '@/components/brand';
+import { PushToggle } from '@/components/push-toggle';
 import { Alert, Button, Field, Input } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { homeFor, useAuth } from '@/lib/auth';
@@ -68,6 +69,12 @@ export default function SecurityPage() {
 
         {mfa && !mfa.enabled && <Setup onDone={done} />}
         {mfa?.enabled && <Enabled status={mfa} onChanged={done} />}
+
+        {!user?.mfaSetupRequired && (
+          <div className="mt-8">
+            <PushToggle />
+          </div>
+        )}
 
         {!user?.mfaSetupRequired && (
           <p className="mt-8 text-center text-sm">

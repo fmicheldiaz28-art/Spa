@@ -280,6 +280,7 @@ model User {
 
   organization        Organization?        @relation(fields: [organizationId], references: [id])
   userRoles           UserRole[]           @relation("UserRoleUser")
+  pushSubscriptions   PushSubscription[]
   sessions            Session[]
   passwordResetTokens PasswordResetToken[]
   staffProfile        StaffProfile?        @relation("StaffUser")
@@ -942,4 +943,22 @@ model WaitlistEntry {
 
   @@index([organizationId, date], map: "ix_waitlist_open")
   @@map("waitlist_entries")
+}
+
+/// Suscripción Web Push de un dispositivo (Fase 2).
+model PushSubscription {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  userAgent  String?   @map("user_agent")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz
+  failures   Int       @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "ix_push_user")
+  @@map("push_subscriptions")
 }
