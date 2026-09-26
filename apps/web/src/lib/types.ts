@@ -48,6 +48,7 @@ export interface ClientFull {
   source: string | null;
   tags: string[];
   marketingOptIn: boolean;
+  remindersOptIn: boolean;
   stats: { visits: number; noShows: number; totalSpent: string; firstVisitAt: string | null; lastVisitAt: string | null };
   createdAt: string;
   restricted: false;

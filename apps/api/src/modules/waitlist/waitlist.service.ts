@@ -3,7 +3,7 @@ import type { Subscription } from 'rxjs';
 import type { AuthUser } from '../../common/auth-user.js';
 import { AppException, Errors } from '../../common/errors.js';
 import { maskPhone } from '../../common/mask.js';
-import { waitlistText, waLink } from '../../common/whatsapp.js';
+import { waLink } from '../../common/whatsapp.js';
 import { resolveBranch, resolveOrganizationId } from '../../common/org.js';
 import { env } from '../../config/env.js';
 import type { Prisma, WaitlistStatus } from '../../generated/prisma/client.js';
@@ -13,6 +13,8 @@ import { AuditService } from '../audit/audit.service.js';
 import { AvailabilityService } from '../availability/availability.service.js';
 import { addDays, localDate, localToUtc, minutesToHHMM, minutesToTimeColumn, timeColumnToMinutes } from '../availability/domain/time.js';
 import { EventsService } from '../events/events.service.js';
+import { textToHtml } from '../templates/domain/email-html.js';
+import { TemplatesService } from '../templates/templates.service.js';
 import { RENOTIFY_MS, shouldNotify, slotsInWindow } from './domain/waitlist.js';
 
 const OPEN: WaitlistStatus[] = ['ACTIVA', 'NOTIFICADA'];
@@ -72,6 +74,7 @@ export class WaitlistService implements OnApplicationBootstrap, OnModuleDestroy 
     private readonly audit: AuditService,
     private readonly mail: MailService,
     private readonly events: EventsService,
+    private readonly templates: TemplatesService,
   ) {}
 
   onApplicationBootstrap() {
@@ -223,14 +226,7 @@ export class WaitlistService implements OnApplicationBootstrap, OnModuleDestroy 
     bookUrl.searchParams.set('servicio', e.serviceId);
     bookUrl.searchParams.set('fecha', date);
     if (e.staffId) bookUrl.searchParams.set('con', e.staffId);
-    const text = waitlistText({
-      firstName: e.client.firstName,
-      day: new Intl.DateTimeFormat('es-BO', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(e.date).replace(',', ''),
-      service: e.service.name,
-      times,
-      orgName: org.name,
-      bookUrl: bookUrl.toString(),
-    });
+    const { text } = await this.templates.render(organizationId, 'WAITLIST_WHATSAPP', this.messageVars(e, times, org.name, bookUrl.toString()));
     const now = new Date();
     await this.prisma.$transaction(async (tx) => {
       await tx.waitlistEntry.update({ where: { id }, data: { status: 'NOTIFICADA', notifiedAt: now, notifyCount: { increment: 1 }, updatedAt: now } });
@@ -324,25 +320,26 @@ export class WaitlistService implements OnApplicationBootstrap, OnModuleDestroy 
     }
   }
 
+  private messageVars(e: EntryRecord, times: string[], orgName: string, url: string) {
+    return {
+      nombre: e.client.firstName,
+      negocio: orgName,
+      dia: new Intl.DateTimeFormat('es-BO', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(e.date).replace(',', ''),
+      servicios: `${e.service.name}${e.staff ? ` con ${e.staff.displayName}` : ''}`,
+      horarios: times.slice(0, 6).join(', ') + (times.length > 6 ? '…' : ''),
+      enlace: url,
+    };
+  }
+
   private async notify(e: EntryRecord, date: string, times: string[], organizationId: string) {
     const url = new URL('/reservar', env.WEB_ORIGIN);
     url.searchParams.set('servicio', e.serviceId);
     url.searchParams.set('fecha', date);
     if (e.staffId) url.searchParams.set('con', e.staffId);
-    const day = new Intl.DateTimeFormat('es-BO', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(e.date).replace(',', '');
-    const shown = times.slice(0, 6).join(', ') + (times.length > 6 ? '…' : '');
-    const subject = `¡Se liberó un horario el ${day}! · NaturalSpa`;
-    const text = [
-      `Hola ${e.client.firstName}:`,
-      '',
-      `Se liberó lugar para ${e.service.name}${e.staff ? ` con ${e.staff.displayName}` : ''} el ${day}.`,
-      `Horarios disponibles ahora: ${shown}.`,
-      '',
-      `Resérvalo antes de que lo tome otra persona: ${url}`,
-      '',
-      'Te avisamos porque te anotaste en la lista de espera. NaturalSpa',
-    ].join('\n');
-    await this.mail.send({ to: e.client.email!, subject, text });
+    const org = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { name: true } });
+    // Texto editable en Configuración → Mensajes (plantilla WAITLIST_EMAIL).
+    const { subject, text } = await this.templates.render(organizationId, 'WAITLIST_EMAIL', this.messageVars(e, times, org.name, url.toString()));
+    await this.mail.send({ to: e.client.email!, subject: subject!, text, html: textToHtml(text, { url: url.toString(), label: 'Reservar ahora' }) });
     await this.prisma.notification.create({
       data: {
         organizationId,

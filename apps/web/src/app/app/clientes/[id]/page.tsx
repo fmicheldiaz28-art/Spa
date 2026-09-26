@@ -89,6 +89,8 @@ export default function ClientDetailPage() {
               <span className="tabular">📞 {contact ? (contact.phone ?? '—') : (client.phone ?? 'Sin teléfono')}</span>
               <span>✉ {contact ? (contact.email ?? '—') : (client.email ?? 'Sin email')}</span>
               {client.birthDate && <span>🎂 {new Date(`${client.birthDate}T12:00:00Z`).toLocaleDateString('es-BO', { day: 'numeric', month: 'long', timeZone: 'UTC' })}</span>}
+              {!client.remindersOptIn && <span className="text-warning">🔕 Pidió no recibir recordatorios</span>}
+              {client.marketingOptIn && <span>📣 Acepta promociones</span>}
             </div>
           )}
         </div>

@@ -4,7 +4,7 @@ import { type AuthUser, can } from '../../common/auth-user.js';
 import { AppException, Errors } from '../../common/errors.js';
 import { lastNameInitial } from '../../common/mask.js';
 import { humanWhen } from '../../common/when.js';
-import { reminderText, waLink } from '../../common/whatsapp.js';
+import { waLink } from '../../common/whatsapp.js';
 import { env } from '../../config/env.js';
 import type { AppointmentSource, CancelledByType, Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
@@ -12,6 +12,7 @@ import { AuditService } from '../audit/audit.service.js';
 import { AvailabilityService, SLOT_PROBLEM_MESSAGES } from '../availability/availability.service.js';
 import { ClientTokenService } from '../booking/client-token.service.js';
 import { EventsService } from '../events/events.service.js';
+import { TemplatesService } from '../templates/templates.service.js';
 import { addDays, localToUtc } from '../availability/domain/time.js';
 import {
   availableActions,
@@ -72,6 +73,7 @@ export class AppointmentsService {
     private readonly availability: AvailabilityService,
     private readonly events: EventsService,
     private readonly tokens: ClientTokenService,
+    private readonly templates: TemplatesService,
   ) {}
 
   // -------------------------------------------------------------------- lectura
@@ -543,12 +545,13 @@ export class AppointmentsService {
     const { organizationId, branch } = await this.availability.context(user);
     const org = await this.prisma.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { name: true } });
     const link = await this.tokens.signAppointmentLink(a.id, organizationId, a.endAt);
-    const text = reminderText({
-      firstName: client.firstName,
-      when: humanWhen(a.startAt, new Date(), branch.timezone),
-      services: a.items.map((i) => `${i.serviceName} con ${i.staff.displayName}`).join(' + '),
-      orgName: org.name,
-      manageUrl: `${env.WEB_ORIGIN}/reservar/gestionar/${link}`,
+    // Texto editable en Configuración → Mensajes (plantilla REMINDER_WHATSAPP).
+    const { text } = await this.templates.render(organizationId, 'REMINDER_WHATSAPP', {
+      nombre: client.firstName,
+      negocio: org.name,
+      cuando: humanWhen(a.startAt, new Date(), branch.timezone),
+      servicios: a.items.map((i) => `${i.serviceName} con ${i.staff.displayName}`).join(' + '),
+      enlace: `${env.WEB_ORIGIN}/reservar/gestionar/${link}`,
     });
     await this.prisma.$transaction(async (tx) => {
       await tx.notification.create({

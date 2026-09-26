@@ -4,7 +4,7 @@ import type { AppointmentStatus } from '@naturalspa/shared';
 import type { AuthUser } from '../../common/auth-user.js';
 import { AppException, Errors } from '../../common/errors.js';
 import { buildIcs } from '../../common/ics.js';
-import { lastNameInitial, maskEmail } from '../../common/mask.js';
+import { lastNameInitial, maskEmail, maskPhone } from '../../common/mask.js';
 import { env } from '../../config/env.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { type Mail, MailService } from '../../infrastructure/mail/mail.service.js';
@@ -29,6 +29,15 @@ interface Settings {
     hold_ttl_sec?: number;
   };
   cancellation?: { client_can_cancel_until_hours?: number; client_can_reschedule_until_hours?: number; max_reschedules_per_appointment?: number };
+}
+
+export interface ProfilePatch {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  birthDate?: string | null;
+  marketingOptIn?: boolean;
+  remindersOptIn?: boolean;
 }
 
 export interface JoinWaitlistInput {
@@ -361,6 +370,76 @@ export class BookingService {
     ]);
 
     return { ...this.publicDto(appointment, branch.timezone, settings), manageToken };
+  }
+
+  // ------------------------------------------------------------------ perfil de la clienta
+
+  private async ownClient(clientToken: string | undefined) {
+    const identity = await this.tokens.verify(clientToken);
+    if (!identity) throw new AppException(401, 'UNVERIFIED', 'Verifica tu email para continuar');
+    const client = await this.prisma.client.findFirst({
+      where: { organizationId: identity.organizationId, email: identity.email, deletedAt: null, mergedIntoId: null },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!client) throw new AppException(404, 'NO_PROFILE', 'Aún no tienes datos guardados', 'Se crean con tu primera reserva.');
+    return client;
+  }
+
+  private profileDto(c: { firstName: string; lastName: string; email: string | null; phoneE164: string | null; birthDate: Date | null; marketingOptIn: boolean; remindersOptIn: boolean }) {
+    return {
+      firstName: c.firstName,
+      lastName: c.lastName,
+      email: c.email,
+      phone: c.phoneE164,
+      birthDate: c.birthDate?.toISOString().slice(0, 10) ?? null,
+      marketingOptIn: c.marketingOptIn,
+      remindersOptIn: c.remindersOptIn,
+    };
+  }
+
+  /** Sus propios datos (email verificado). Es su información: se muestra completa. */
+  async myProfile(clientToken: string | undefined) {
+    return this.profileDto(await this.ownClient(clientToken));
+  }
+
+  async updateMyProfile(clientToken: string | undefined, patch: ProfilePatch) {
+    const c = await this.ownClient(clientToken);
+    const data = Object.fromEntries(
+      Object.entries({
+        firstName: patch.firstName,
+        lastName: patch.lastName,
+        phoneE164: patch.phone,
+        birthDate: patch.birthDate === undefined ? undefined : patch.birthDate ? new Date(`${patch.birthDate}T00:00:00Z`) : null,
+        marketingOptIn: patch.marketingOptIn,
+        remindersOptIn: patch.remindersOptIn,
+      }).filter(([, v]) => v !== undefined),
+    );
+    const before = this.profileDto(c);
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const u = await tx.client.update({ where: { id: c.id }, data });
+      if (patch.marketingOptIn !== undefined && patch.marketingOptIn !== c.marketingOptIn) {
+        await tx.clientConsent.create({ data: { clientId: c.id, consentType: 'MARKETING', granted: patch.marketingOptIn, channel: 'ONLINE' } });
+      }
+      const after = this.profileDto(u);
+      const changed = (Object.keys(after) as (keyof typeof after)[]).filter((k) => after[k] !== before[k]);
+      if (changed.length) {
+        await this.audit.record(
+          {
+            action: 'UPDATE',
+            module: 'clients',
+            actor: { type: 'CLIENT', name: `${u.firstName} ${u.lastName}`.trim() },
+            organizationId: c.organizationId,
+            entity: { type: 'Client', id: c.id, label: `${u.firstName} ${u.lastName}`.trim() },
+            oldValues: Object.fromEntries(changed.map((k) => [k, k === 'phone' ? maskPhone(before.phone) : before[k]])),
+            newValues: Object.fromEntries(changed.map((k) => [k, k === 'phone' ? maskPhone(after.phone) : after[k]])),
+            reason: 'Actualizado por la clienta desde Mis reservas',
+          },
+          tx,
+        );
+      }
+      return u;
+    });
+    return this.profileDto(updated);
   }
 
   // ------------------------------------------------------------------ lista de espera

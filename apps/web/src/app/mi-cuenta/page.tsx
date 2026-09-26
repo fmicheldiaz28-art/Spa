@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Brand } from '@/components/brand';
+import { MyProfile } from '@/components/booking/my-profile';
 import { ReservationCard } from '@/components/booking/reservation-card';
 import { Alert, Button, EmptyState, Field, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
@@ -145,6 +146,7 @@ export default function MyAccountPage() {
           )
         ) : (
           <div className="mt-6 space-y-6">
+            <MyProfile clientToken={token} />
             <section className="space-y-3">
               <h2 className="text-sm font-semibold text-muted uppercase">Próximas</h2>
               {appointments && upcoming.length === 0 && <EmptyState title="No tienes reservas próximas" />}

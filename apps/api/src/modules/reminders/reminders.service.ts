@@ -3,9 +3,10 @@ import { env } from '../../config/env.js';
 import { MailService } from '../../infrastructure/mail/mail.service.js';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service.js';
 import { humanWhen } from '../../common/when.js';
-import { localDate } from '../availability/domain/time.js';
 import { ClientTokenService } from '../booking/client-token.service.js';
 import { resolveSettings } from '../organization/settings.service.js';
+import { textToHtml } from '../templates/domain/email-html.js';
+import { TemplatesService } from '../templates/templates.service.js';
 import { dueReminder, reminderSlots } from './domain/reminder-plan.js';
 
 const MAX_ATTEMPTS = 3;
@@ -28,6 +29,7 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly tokens: ClientTokenService,
+    private readonly templates: TemplatesService,
   ) {}
 
   onApplicationBootstrap() {
@@ -68,7 +70,7 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
           deletedAt: null,
           status: { in: [...ACTIVE] },
           startAt: { gt: now, lte: new Date(now.getTime() + slots[0]!.hoursBefore * 3_600_000) },
-          client: { deletedAt: null, email: { not: null } },
+          client: { deletedAt: null, email: { not: null }, remindersOptIn: true },
         },
         select: { id: true, startAt: true, createdAt: true, clientId: true, client: { select: { email: true } } },
       });
@@ -112,7 +114,7 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
   }
 
   /** Devuelve false si el aviso ya no aplica (cita cancelada, reagendada o por empezar). */
-  private async send(appointmentId: string | null, code: string, startAtIso: string | undefined, to: string | null, now: Date): Promise<boolean> {
+  private async send(appointmentId: string | null, _code: string, startAtIso: string | undefined, to: string | null, now: Date): Promise<boolean> {
     if (!appointmentId || !to) return false;
     const a = await this.prisma.appointment.findUnique({
       where: { id: appointmentId },
@@ -120,51 +122,26 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
         client: { select: { firstName: true } },
         items: { include: { staff: { select: { displayName: true } } }, orderBy: { startAt: 'asc' } },
         branch: true,
+        organization: { select: { name: true } },
       },
     });
     if (!a || a.deletedAt || !(ACTIVE as readonly string[]).includes(a.status)) return false;
     if (a.startAt.toISOString() !== startAtIso || a.startAt <= now) return false;
 
     const branch = a.branch;
-    const tz = branch.timezone;
-    const day = localDate(a.startAt, tz);
-    const today = localDate(now, tz);
-    const when = humanWhen(a.startAt, now, tz);
-    const services = a.items.map((i) => `${i.serviceName} con ${i.staff.displayName}`).join(' + ');
     const link = await this.tokens.signAppointmentLink(a.id, a.organizationId, a.endAt);
     const url = `${env.WEB_ORIGIN}/reservar/gestionar/${link}`;
-    const address = [branch.address, branch.city].filter(Boolean).join(', ');
-
-    const text = [
-      `Hola ${a.client.firstName}:`,
-      '',
-      `Te esperamos ${when} para ${services}.`,
-      ...(address ? [`Dirección: ${address}`] : []),
-      '',
-      a.clientConfirmedAt ? 'Ya confirmaste tu asistencia. ¡Gracias!' : 'Por favor confirma tu asistencia.',
-      `Confirmar, reagendar o cancelar: ${url}`,
-      '',
-      'Te recomendamos llegar 10 minutos antes.',
-      'NaturalSpa',
-    ].join('\n');
-    const html = `<div style="font-family:system-ui,sans-serif;max-width:480px;color:#1f2a24">
-<p>Hola ${escapeHtml(a.client.firstName)}:</p>
-<p>Te esperamos <strong>${escapeHtml(when)}</strong> para <strong>${escapeHtml(services)}</strong>.</p>
-${address ? `<p style="color:#5b665f">📍 ${escapeHtml(address)}</p>` : ''}
-${
-  a.clientConfirmedAt
-    ? '<p>Ya confirmaste tu asistencia. ¡Gracias!</p>'
-    : `<p><a href="${url}" style="display:inline-block;background:#3f7d5c;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">Confirmar asistencia</a></p>`
-}
-<p><a href="${url}" style="color:#3f7d5c">¿No puedes venir? Reagenda o cancela</a></p>
-<p style="color:#5b665f;font-size:13px">Te recomendamos llegar 10 minutos antes.<br>NaturalSpa</p>
-</div>`;
-    const subject = code === 'REMINDER_2H' || day === today ? `Te esperamos ${when} · NaturalSpa` : `Recordatorio: tu cita ${when} · NaturalSpa`;
-    await this.mail.send({ to, subject, text, html });
+    // Texto editable en Configuración → Mensajes (plantilla REMINDER_EMAIL).
+    const { subject, text } = await this.templates.render(a.organizationId, 'REMINDER_EMAIL', {
+      nombre: a.client.firstName,
+      negocio: a.organization.name,
+      cuando: humanWhen(a.startAt, now, branch.timezone),
+      servicios: a.items.map((i) => `${i.serviceName} con ${i.staff.displayName}`).join(' + '),
+      direccion: [branch.address, branch.city].filter(Boolean).join(', '),
+      enlace: url,
+    });
+    const label = a.clientConfirmedAt ? 'Ver o cambiar mi reserva' : 'Confirmar asistencia';
+    await this.mail.send({ to, subject: subject!, text, html: textToHtml(text, { url, label }) });
     return true;
   }
-}
-
-function escapeHtml(v: string) {
-  return v.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }

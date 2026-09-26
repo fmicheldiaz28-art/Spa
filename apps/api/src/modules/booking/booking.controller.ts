@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, HttpCode, Param, ParseUUIDPipe, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { Public } from '../../common/decorators.js';
@@ -39,6 +39,17 @@ const joinWaitlistSchema = waitlistEntrySchema.extend({
   privacyConsent: z.boolean(),
   marketingOptIn: z.boolean().optional(),
 });
+
+const profileSchema = z
+  .object({
+    firstName: nameSchema,
+    lastName: z.string().trim().max(60),
+    phone: phoneSchema,
+    birthDate: dateSchema.nullable(),
+    marketingOptIn: z.boolean(),
+    remindersOptIn: z.boolean(),
+  })
+  .partial();
 
 const bearer = (auth?: string) => (auth?.startsWith('Bearer ') ? auth.slice(7) : undefined);
 
@@ -141,6 +152,17 @@ export class BookingController {
   joinWaitlist(@Req() req: Request, @Headers('authorization') auth: string | undefined, @Body(new ZodValidationPipe(joinWaitlistSchema)) dto: z.infer<typeof joinWaitlistSchema>) {
     this.limiter.hit(`waitlist:${req.ip}`, 10, 3_600_000);
     return this.booking.joinWaitlist(bearer(auth), dto);
+  }
+
+  @Get('me/profile')
+  myProfile(@Headers('authorization') auth?: string) {
+    return this.booking.myProfile(bearer(auth));
+  }
+
+  @Patch('me/profile')
+  updateMyProfile(@Req() req: Request, @Headers('authorization') auth: string | undefined, @Body(new ZodValidationPipe(profileSchema)) dto: z.infer<typeof profileSchema>) {
+    this.limiter.hit(`profile:${req.ip}`, 20, 3_600_000);
+    return this.booking.updateMyProfile(bearer(auth), dto);
   }
 
   @Get('me/waitlist')

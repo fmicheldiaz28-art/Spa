@@ -30,6 +30,17 @@ const server = new PGLiteSocketServer({
 });
 await server.start();
 
+// Error de @electric-sql/pglite-socket 0.1.x: cuando un cliente se corta de golpe (ECONNRESET, p. ej.
+// el API al reiniciarse en modo desarrollo), el manejador se desconecta por la vía de "error", que
+// quita el listener de "close" antes de que llegue; el servidor nunca lo borra de `handlers` y, tras
+// `maxConnections` cortes, rechaza toda conexión nueva ("Connection terminated" / P1001).
+// Se purgan aquí los manejadores ya desconectados.
+setInterval(() => {
+  for (const handler of server.handlers) {
+    if (!handler.isAttached) server.handlers.delete(handler);
+  }
+}, 2_000).unref();
+
 console.log(`PGlite listo en postgresql://postgres:postgres@localhost:${port}/postgres`);
 console.log('Ctrl+C para detener.');
 

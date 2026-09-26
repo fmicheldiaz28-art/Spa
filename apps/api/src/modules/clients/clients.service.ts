@@ -102,6 +102,7 @@ export class ClientsService {
       source: c.source,
       tags: c.tags,
       marketingOptIn: c.marketingOptIn,
+      remindersOptIn: c.remindersOptIn,
       stats: {
         visits: c.visitsCount,
         noShows: c.noShowCount,

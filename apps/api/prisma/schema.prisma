@@ -599,6 +599,7 @@ model Client {
   tags              String[]  @default([])
   preferredStaffId  String?   @map("preferred_staff_id") @db.Uuid
   marketingOptIn    Boolean   @default(false) @map("marketing_opt_in")
+  remindersOptIn    Boolean   @default(true) @map("reminders_opt_in")
   firstVisitAt      DateTime? @map("first_visit_at") @db.Timestamptz
   lastVisitAt       DateTime? @map("last_visit_at") @db.Timestamptz
   visitsCount       Int       @default(0) @map("visits_count")

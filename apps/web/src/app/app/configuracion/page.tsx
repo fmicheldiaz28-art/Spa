@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Alert, Button, Field, Input, Select } from '@/components/ui';
@@ -89,7 +90,12 @@ export default function SettingsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Configuración</h1>
-          <p className="mt-1 text-sm text-muted">Cada cambio queda registrado en la auditoría.</p>
+          <p className="mt-1 text-sm text-muted">
+            Cada cambio queda registrado en la auditoría.{' '}
+            <Link href="/app/configuracion/mensajes" className="text-primary hover:underline">
+              Editar mensajes a clientas →
+            </Link>
+          </p>
         </div>
         <Button type="submit" disabled={saving}>
           {saving ? 'Guardando…' : 'Guardar cambios'}
