@@ -6,6 +6,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
+import { BrandLogos } from "../components/BrandLogos";
 import { Backdrop, Progress, Scrims } from "../components/Overlay";
 import { Env, Rig } from "../components/three-helpers";
 import { FinishedTire } from "../components/Tires";
@@ -116,6 +117,29 @@ export const Outro: React.FC = () => {
           }}
         >
           Llanta radial para camión · 295/80 R22.5
+        </div>
+      </AbsoluteFill>
+      <AbsoluteFill
+        style={{
+          justifyContent: "flex-end",
+          alignItems: "center",
+          paddingBottom: 230,
+          pointerEvents: "none",
+        }}
+      >
+        <div
+          style={{
+            padding: "26px 44px",
+            borderRadius: 26,
+            background: "rgba(8,10,13,0.82)",
+            border: "1px solid rgba(255,255,255,0.14)",
+            opacity: interpolate(frame, [44, 54], [0, 1], {
+              ...clamp,
+              easing: ease,
+            }),
+          }}
+        >
+          <BrandLogos from={46} height={96} gap={40} />
         </div>
       </AbsoluteFill>
       <Progress step={7} />

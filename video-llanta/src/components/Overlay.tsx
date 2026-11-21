@@ -1,5 +1,6 @@
 import { AbsoluteFill, Easing, interpolate, useCurrentFrame } from "remotion";
 import { C, STEPS, bodyFont, displayFont } from "../theme";
+import { BrandLogos } from "./BrandLogos";
 
 const ease = Easing.bezier(0.16, 1, 0.3, 1);
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
@@ -16,27 +17,41 @@ export const StepHeader: React.FC<{
     <AbsoluteFill style={{ padding: "130px 84px 0", pointerEvents: "none" }}>
       <div
         style={{
-          fontFamily: displayFont,
-          fontWeight: 600,
-          fontSize: 40,
-          letterSpacing: 6,
-          color: C.accent,
-          opacity: interpolate(frame, [delay, delay + 12], [0, 1], {
-            ...clamp,
-            easing: ease,
-          }),
-          translate: interpolate(
-            frame,
-            [delay, delay + 12],
-            ["0px 24px", "0px 0px"],
-            {
-              ...clamp,
-              easing: ease,
-            },
-          ),
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
         }}
       >
-        PASO {String(step).padStart(2, "0")} / 06
+        <div
+          style={{
+            fontFamily: displayFont,
+            fontWeight: 600,
+            fontSize: 40,
+            letterSpacing: 6,
+            color: C.accent,
+            opacity: interpolate(frame, [delay, delay + 12], [0, 1], {
+              ...clamp,
+              easing: ease,
+            }),
+            translate: interpolate(
+              frame,
+              [delay, delay + 12],
+              ["0px 24px", "0px 0px"],
+              {
+                ...clamp,
+                easing: ease,
+              },
+            ),
+          }}
+        >
+          PASO {String(step).padStart(2, "0")} / 06
+        </div>
+        <BrandLogos
+          from={delay}
+          height={40}
+          gap={18}
+          color="rgba(255,255,255,0.8)"
+        />
       </div>
       <div
         style={{

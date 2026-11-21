@@ -10,7 +10,9 @@ const outro = read("../src/data/outro.json");
 const SR = 48000;
 const FPS = timeline.fps;
 const T = timeline.transition;
-const totalFrames = timeline.scenes.reduce((a, s) => a + s.duration, 0) - T * (timeline.scenes.length - 1);
+const totalFrames =
+  timeline.scenes.reduce((a, s) => a + s.duration, 0) -
+  T * (timeline.scenes.length - 1);
 const DUR = totalFrames / FPS;
 const N = Math.ceil(DUR * SR);
 const L = new Float32Array(N);
@@ -53,7 +55,13 @@ const tone = (t0, dur, freq, env, { pan = 0, harm = [1], amp = 1 } = {}) => {
 };
 
 /** Ruido filtrado (filtro de estado variable) con corte y envolvente variables. */
-const noiseBurst = (t0, dur, cutoff, env, { q = 0.7, mode = "bp", pan = 0, amp = 1 } = {}) => {
+const noiseBurst = (
+  t0,
+  dur,
+  cutoff,
+  env,
+  { q = 0.7, mode = "bp", pan = 0, amp = 1 } = {},
+) => {
   let low = 0;
   let band = 0;
   const i0 = Math.floor(t0 * SR);
@@ -87,7 +95,11 @@ const attackDecay = (a, d) => (t) => (t < a ? t / a : Math.exp(-(t - a) / d));
         const swell = 0.75 + 0.25 * Math.sin(t * 0.9 + j);
         return fadeIn * fadeOut * swell;
       },
-      { amp: [0.07, 0.045, 0.025, 0.012][j], harm: [1, 0.35, 0.12], pan: [-0.2, 0.2, -0.3, 0.3][j] },
+      {
+        amp: [0.07, 0.045, 0.025, 0.012][j],
+        harm: [1, 0.35, 0.12],
+        pan: [-0.2, 0.2, -0.3, 0.3][j],
+      },
     );
   });
 }
@@ -95,12 +107,21 @@ const attackDecay = (a, d) => (t) => (t < a ? t / a : Math.exp(-(t - a) / d));
 /* ---------- 2. Ritmo 120 BPM ---------- */
 const BEAT = 0.5;
 const kick = (t0, amp = 1) =>
-  tone(t0, 0.45, (t) => 45 + 95 * Math.exp(-t / 0.035), expDecay(0.13), { amp: 0.55 * amp });
+  tone(t0, 0.45, (t) => 45 + 95 * Math.exp(-t / 0.035), expDecay(0.13), {
+    amp: 0.55 * amp,
+  });
 const hat = (t0, amp = 1) =>
-  noiseBurst(t0, 0.06, () => 9000, expDecay(0.018), { mode: "hp", amp: 0.12 * amp, pan: 0.25 });
+  noiseBurst(t0, 0.06, () => 9000, expDecay(0.018), {
+    mode: "hp",
+    amp: 0.12 * amp,
+    pan: 0.25,
+  });
 const clank = (t0, amp = 1) => {
   [523, 1187, 1873, 2711].forEach((f, j) =>
-    tone(t0, 0.5, () => f, expDecay(0.07 + j * 0.02), { amp: (0.05 / (j + 1)) * amp, pan: -0.3 }),
+    tone(t0, 0.5, () => f, expDecay(0.07 + j * 0.02), {
+      amp: (0.05 / (j + 1)) * amp,
+      pan: -0.3,
+    }),
   );
   noiseBurst(t0, 0.08, () => 3000, expDecay(0.02), { amp: 0.15 * amp });
 };
@@ -132,10 +153,22 @@ timeline.scenes.slice(1).forEach((s) => {
 // Intro: golpe grave al aparecer el título
 {
   const t = at("Intro", 20);
-  tone(t, 2.2, (x) => 38 + 30 * Math.exp(-x / 0.25), attackDecay(0.005, 0.7), { amp: 0.7 });
-  noiseBurst(t, 1.6, (x) => 1500 * Math.exp(-x / 0.4) + 200, attackDecay(0.002, 0.35), { mode: "lp", amp: 0.5 });
+  tone(t, 2.2, (x) => 38 + 30 * Math.exp(-x / 0.25), attackDecay(0.005, 0.7), {
+    amp: 0.7,
+  });
+  noiseBurst(
+    t,
+    1.6,
+    (x) => 1500 * Math.exp(-x / 0.4) + 200,
+    attackDecay(0.002, 0.35),
+    { mode: "lp", amp: 0.5 },
+  );
   [220, 330, 440].forEach((f, j) =>
-    tone(t, 2.5, () => f, attackDecay(0.4, 1.2), { amp: 0.02, harm: [1, 0.3], pan: j - 1 }),
+    tone(t, 2.5, () => f, attackDecay(0.4, 1.2), {
+      amp: 0.02,
+      harm: [1, 0.3],
+      pan: j - 1,
+    }),
   );
 }
 // Mezclado: cada ingrediente que toca fondo suena (detectado de la física)
@@ -148,11 +181,17 @@ mixing.items.forEach((it) => {
     if (vPrev < -0.06 && v > vPrev * 0.35) {
       const t = at("Mezclado", f) + rnd() * 0.02;
       const big = it.kind === "caucho";
-      noiseBurst(t, 0.12, () => (big ? 700 : 2400 + rnd() * 1500), expDecay(big ? 0.03 : 0.012), {
-        amp: big ? 0.35 : 0.12,
-        pan: it.track[f][0] * 0.6,
-        q: 0.4,
-      });
+      noiseBurst(
+        t,
+        0.12,
+        () => (big ? 700 : 2400 + rnd() * 1500),
+        expDecay(big ? 0.03 : 0.012),
+        {
+          amp: big ? 0.35 : 0.12,
+          pan: it.track[f][0] * 0.6,
+          q: 0.4,
+        },
+      );
       if (big) tone(t, 0.2, () => 110, expDecay(0.05), { amp: 0.25 });
       break;
     }
@@ -160,13 +199,22 @@ mixing.items.forEach((it) => {
 });
 {
   const ramHit = at("Mezclado", 70);
-  tone(ramHit, 0.6, (x) => 60 + 40 * Math.exp(-x / 0.05), expDecay(0.15), { amp: 0.55 });
+  tone(ramHit, 0.6, (x) => 60 + 40 * Math.exp(-x / 0.05), expDecay(0.15), {
+    amp: 0.55,
+  });
   clank(ramHit, 1.2);
   // rotores
-  noiseBurst(at("Mezclado", 60), 1.6, () => 180, (x) => Math.sin(Math.PI * Math.min(1, x / 1.6)) * (0.7 + 0.3 * Math.sin(x * 40)), {
-    mode: "lp",
-    amp: 0.5,
-  });
+  noiseBurst(
+    at("Mezclado", 60),
+    1.6,
+    () => 180,
+    (x) =>
+      Math.sin(Math.PI * Math.min(1, x / 1.6)) * (0.7 + 0.3 * Math.sin(x * 40)),
+    {
+      mode: "lp",
+      amp: 0.5,
+    },
+  );
 }
 // Extrusión: zumbido de máquina
 tone(
@@ -192,62 +240,133 @@ tone(
 });
 {
   const t = at("Construccion", 168);
-  [392, 494, 587].forEach((f) => tone(t, 1.2, () => f, attackDecay(0.01, 0.5), { amp: 0.05, harm: [1, 0.3] }));
+  [392, 494, 587].forEach((f) =>
+    tone(t, 1.2, () => f, attackDecay(0.01, 0.5), {
+      amp: 0.05,
+      harm: [1, 0.3],
+    }),
+  );
 }
 // Vulcanizado: cierre de prensa, vapor y apertura
 {
   const close = at("Vulcanizado", 36);
-  tone(close, 0.9, (x) => 42 + 50 * Math.exp(-x / 0.06), expDecay(0.25), { amp: 0.8 });
-  clank(close, 1.5);
-  noiseBurst(at("Vulcanizado", 42), 2.4, () => 6000, (x) => Math.min(1, x / 0.6) * Math.min(1, (2.4 - x) / 0.8), {
-    mode: "hp",
-    amp: 0.09,
+  tone(close, 0.9, (x) => 42 + 50 * Math.exp(-x / 0.06), expDecay(0.25), {
+    amp: 0.8,
   });
-  noiseBurst(at("Vulcanizado", 100), 1.0, () => 5000, attackDecay(0.05, 0.4), { mode: "hp", amp: 0.22 });
-  tone(at("Vulcanizado", 100), 0.8, (x) => 70 + 20 * x, expDecay(0.3), { amp: 0.25 });
+  clank(close, 1.5);
+  noiseBurst(
+    at("Vulcanizado", 42),
+    2.4,
+    () => 6000,
+    (x) => Math.min(1, x / 0.6) * Math.min(1, (2.4 - x) / 0.8),
+    {
+      mode: "hp",
+      amp: 0.09,
+    },
+  );
+  noiseBurst(at("Vulcanizado", 100), 1.0, () => 5000, attackDecay(0.05, 0.4), {
+    mode: "hp",
+    amp: 0.22,
+  });
+  tone(at("Vulcanizado", 100), 0.8, (x) => 70 + 20 * x, expDecay(0.3), {
+    amp: 0.25,
+  });
 }
 // Inspección: barrido del escáner, confirmaciones y sello
 {
   const t0 = at("Inspeccion", 8);
-  tone(t0, 76 / FPS, (x) => 700 + 300 * (x / (76 / FPS)), (x) => 0.5 + 0.5 * Math.sin(x * 50), { amp: 0.03 });
+  tone(
+    t0,
+    76 / FPS,
+    (x) => 700 + 300 * (x / (76 / FPS)),
+    (x) => 0.5 + 0.5 * Math.sin(x * 50),
+    { amp: 0.03 },
+  );
   [34, 52, 70].forEach((f, j) => {
     const t = at("Inspeccion", f);
     tone(t, 0.12, () => 1046, expDecay(0.05), { amp: 0.12 });
     tone(t + 0.09, 0.3, () => 1568 + j * 100, expDecay(0.09), { amp: 0.12 });
   });
   const stamp = at("Inspeccion", 84);
-  tone(stamp, 0.6, (x) => 55 + 60 * Math.exp(-x / 0.04), expDecay(0.16), { amp: 0.6 });
-  [523, 659, 784].forEach((f) => tone(stamp, 1.4, () => f, attackDecay(0.01, 0.6), { amp: 0.05, harm: [1, 0.4] }));
+  tone(stamp, 0.6, (x) => 55 + 60 * Math.exp(-x / 0.04), expDecay(0.16), {
+    amp: 0.6,
+  });
+  [523, 659, 784].forEach((f) =>
+    tone(stamp, 1.4, () => f, attackDecay(0.01, 0.6), {
+      amp: 0.05,
+      harm: [1, 0.4],
+    }),
+  );
 }
 // Cierre: golpes de las llantas al apilarse + rodadura + acorde final
 outro.stack.forEach((s, i) => {
   if (s.impact === null) return;
   const t = at("Cierre", s.impact);
-  tone(t, 0.7, (x) => 48 + 40 * Math.exp(-x / 0.05), expDecay(0.18), { amp: 0.75 - i * 0.08 });
+  tone(t, 0.7, (x) => 48 + 40 * Math.exp(-x / 0.05), expDecay(0.18), {
+    amp: 0.75 - i * 0.08,
+  });
   noiseBurst(t, 0.25, () => 900, expDecay(0.05), { mode: "lp", amp: 0.4 });
 });
-noiseBurst(at("Cierre", outro.roller.spawn), 2.0, () => 260, (x) => Math.max(0, 1 - x / 2.0) * 0.8, {
-  mode: "lp",
-  amp: 0.45,
-  pan: (x) => -0.8 + 0.8 * Math.min(1, x / 1.2),
-});
+noiseBurst(
+  at("Cierre", outro.roller.spawn),
+  2.0,
+  () => 260,
+  (x) => Math.max(0, 1 - x / 2.0) * 0.8,
+  {
+    mode: "lp",
+    amp: 0.45,
+    pan: (x) => -0.8 + 0.8 * Math.min(1, x / 1.2),
+  },
+);
 {
   const t = at("Cierre", 30);
-  tone(t, 2.6, (x) => 36 + 25 * Math.exp(-x / 0.3), attackDecay(0.005, 0.9), { amp: 0.6 });
+  tone(t, 2.6, (x) => 36 + 25 * Math.exp(-x / 0.3), attackDecay(0.005, 0.9), {
+    amp: 0.6,
+  });
   [220, 277.2, 329.6, 440].forEach((f, j) =>
-    tone(t, 2.6, () => f, (x) => attackDecay(0.02, 1.1)(x) * Math.min(1, (DUR - (t + x)) / 0.4), {
-      amp: 0.035,
-      harm: [1, 0.4, 0.15],
-      pan: j / 2 - 0.75,
-    }),
+    tone(
+      t,
+      2.6,
+      () => f,
+      (x) => attackDecay(0.02, 1.1)(x) * Math.min(1, (DUR - (t + x)) / 0.4),
+      {
+        amp: 0.035,
+        harm: [1, 0.4, 0.15],
+        pan: j / 2 - 0.75,
+      },
+    ),
   );
 }
+
+// Brillo al aparecer las marcas (intro y cierre)
+const shimmer = (t0, amp = 1) => {
+  [1568, 2093, 2637, 3136].forEach((f, j) =>
+    tone(t0 + j * 0.045, 1.1, () => f, attackDecay(0.005, 0.35), {
+      amp: 0.035 * amp,
+      pan: j / 1.5 - 1,
+    }),
+  );
+  noiseBurst(
+    t0,
+    0.6,
+    (x) => 6000 + 4000 * x,
+    (x) => Math.sin(Math.PI * Math.min(1, x / 0.6)),
+    {
+      mode: "hp",
+      amp: 0.05 * amp,
+    },
+  );
+};
+shimmer(at("Intro", 4));
+shimmer(at("Cierre", 46), 1.3);
 
 /* ---------- Master ---------- */
 // reverberación sencilla (combs) para dar espacio
 const reverb = (buf) => {
   const out = new Float32Array(buf.length);
-  const delays = [1557, 1617, 1491, 1422].map((d) => Math.floor((d * SR) / 44100));
+  const delays = [1557, 1617, 1491, 1422].map((d) =>
+    Math.floor((d * SR) / 44100),
+  );
   delays.forEach((d) => {
     const line = new Float32Array(d);
     let idx = 0;
@@ -292,8 +411,16 @@ data.writeUInt16LE(16, 34);
 data.write("data", 36);
 data.writeUInt32LE(N * 4, 40);
 for (let i = 0; i < N; i++) {
-  data.writeInt16LE(Math.round(Math.max(-1, Math.min(1, L[i])) * 32767), 44 + i * 4);
-  data.writeInt16LE(Math.round(Math.max(-1, Math.min(1, R[i])) * 32767), 46 + i * 4);
+  data.writeInt16LE(
+    Math.round(Math.max(-1, Math.min(1, L[i])) * 32767),
+    44 + i * 4,
+  );
+  data.writeInt16LE(
+    Math.round(Math.max(-1, Math.min(1, R[i])) * 32767),
+    46 + i * 4,
+  );
 }
 writeFileSync(new URL("../public/audio/soundtrack.wav", import.meta.url), data);
-console.log(`soundtrack.wav: ${DUR.toFixed(2)} s, pico previo ${peak.toFixed(2)}`);
+console.log(
+  `soundtrack.wav: ${DUR.toFixed(2)} s, pico previo ${peak.toFixed(2)}`,
+);

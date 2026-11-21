@@ -5,7 +5,9 @@ import RAPIER from "@dimforge/rapier3d-compat";
 import { writeFileSync, readFileSync } from "node:fs";
 
 await RAPIER.init();
-const timeline = JSON.parse(readFileSync(new URL("../src/data/timeline.json", import.meta.url)));
+const timeline = JSON.parse(
+  readFileSync(new URL("../src/data/timeline.json", import.meta.url)),
+);
 const FPS = timeline.fps;
 const SUB = 4;
 const r3 = (v) => Math.round(v * 1000) / 1000;
@@ -22,8 +24,13 @@ const rng = (seed) => {
 };
 
 const fixedBox = (world, hx, hy, hz, x, y, z) => {
-  const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z));
-  world.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz).setFriction(0.7), body);
+  const body = world.createRigidBody(
+    RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z),
+  );
+  world.createCollider(
+    RAPIER.ColliderDesc.cuboid(hx, hy, hz).setFriction(0.7),
+    body,
+  );
 };
 
 /* ---------------- Escena Mezclado: ingredientes cayendo a la tolva ---------------- */
@@ -34,7 +41,10 @@ const bakeMixing = () => {
 
   // Tolva: tronco de cono como trimesh
   const seg = 28;
-  const yTop = 2.6, yBot = 1.75, rTop = 0.95, rBot = 0.34;
+  const yTop = 2.6,
+    yBot = 1.75,
+    rTop = 0.95,
+    rBot = 0.34;
   const verts = [];
   const idx = [];
   for (let i = 0; i < seg; i++) {
@@ -43,12 +53,18 @@ const bakeMixing = () => {
     verts.push(Math.cos(a) * rBot, yBot, Math.sin(a) * rBot);
   }
   for (let i = 0; i < seg; i++) {
-    const a = i * 2, b = i * 2 + 1, c = ((i + 1) % seg) * 2, d = ((i + 1) % seg) * 2 + 1;
+    const a = i * 2,
+      b = i * 2 + 1,
+      c = ((i + 1) % seg) * 2,
+      d = ((i + 1) % seg) * 2 + 1;
     idx.push(a, b, c, c, b, d);
   }
   const hopper = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
   world.createCollider(
-    RAPIER.ColliderDesc.trimesh(new Float32Array(verts), new Uint32Array(idx)).setFriction(0.3),
+    RAPIER.ColliderDesc.trimesh(
+      new Float32Array(verts),
+      new Uint32Array(idx),
+    ).setFriction(0.3),
     hopper,
   );
   // Cuello de la tolva hacia la cámara
@@ -76,12 +92,22 @@ const bakeMixing = () => {
     const ang = rand() * Math.PI * 2;
     const rad = Math.sqrt(rand()) * 0.55;
     const size =
-      kind === "caucho" ? 0.11 : kind === "negro" ? 0.055 : kind === "silice" ? 0.05 : 0.045;
+      kind === "caucho"
+        ? 0.11
+        : kind === "negro"
+          ? 0.055
+          : kind === "silice"
+            ? 0.05
+            : 0.045;
     return {
       kind,
       size,
       spawn,
-      start: { x: Math.cos(ang) * rad, y: 3.2 + rand() * 0.9, z: Math.sin(ang) * rad },
+      start: {
+        x: Math.cos(ang) * rad,
+        y: 3.2 + rand() * 0.9,
+        z: Math.sin(ang) * rad,
+      },
       rot: { x: rand(), y: rand(), z: rand(), w: rand() },
       body: null,
       track: [],
@@ -102,7 +128,10 @@ const bakeMixing = () => {
           it.kind === "caucho"
             ? RAPIER.ColliderDesc.cuboid(it.size, it.size * 0.8, it.size * 1.1)
             : RAPIER.ColliderDesc.ball(it.size);
-        world.createCollider(col.setRestitution(0.25).setFriction(0.6).setDensity(1.2), it.body);
+        world.createCollider(
+          col.setRestitution(0.25).setFriction(0.6).setDensity(1.2),
+          it.body,
+        );
       }
     }
     for (let s = 0; s < SUB; s++) world.step();
@@ -113,7 +142,15 @@ const bakeMixing = () => {
       }
       const p = it.body.translation();
       const q = it.body.rotation();
-      it.track.push([r3(p.x), r3(p.y), r3(p.z), r3(q.x), r3(q.y), r3(q.z), r3(q.w)]);
+      it.track.push([
+        r3(p.x),
+        r3(p.y),
+        r3(p.z),
+        r3(q.x),
+        r3(q.y),
+        r3(q.z),
+        r3(q.w),
+      ]);
     }
   }
   return {
@@ -156,7 +193,12 @@ const simulateOutro = (rollSpeed, record) => {
   for (let f = 0; f < frames; f++) {
     for (const t of stack) {
       if (t.spawn === f) {
-        const q = { x: Math.sin(t.tilt / 2), y: 0, z: 0, w: Math.cos(t.tilt / 2) };
+        const q = {
+          x: Math.sin(t.tilt / 2),
+          y: 0,
+          z: 0,
+          w: Math.cos(t.tilt / 2),
+        };
         t.body = world.createRigidBody(
           RAPIER.RigidBodyDesc.dynamic()
             .setTranslation(t.pos.x, t.pos.y, t.pos.z)
@@ -175,7 +217,12 @@ const simulateOutro = (rollSpeed, record) => {
     }
     if (roller.spawn === f) {
       // cilindro con eje Z (rueda de pie), rodando en +X
-      const q = { x: Math.sin(Math.PI / 4), y: 0, z: 0, w: Math.cos(Math.PI / 4) };
+      const q = {
+        x: Math.sin(Math.PI / 4),
+        y: 0,
+        z: 0,
+        w: Math.cos(Math.PI / 4),
+      };
       roller.body = world.createRigidBody(
         RAPIER.RigidBodyDesc.dynamic()
           .setTranslation(-3.6, TIRE_R + 0.002, 1.5)
@@ -187,7 +234,9 @@ const simulateOutro = (rollSpeed, record) => {
           .enabledRotations(false, false, true),
       );
       world.createCollider(
-        RAPIER.ColliderDesc.cylinder(TIRE_HALF, TIRE_R).setFriction(1.2).setDensity(1),
+        RAPIER.ColliderDesc.cylinder(TIRE_HALF, TIRE_R)
+          .setFriction(1.2)
+          .setDensity(1),
         roller.body,
       );
     }
@@ -199,15 +248,32 @@ const simulateOutro = (rollSpeed, record) => {
         return;
       }
       const vy = t.body.linvel().y;
-      if (t.impact === null && vyBefore[i] < -1.5 && vy > vyBefore[i] + 1.2) t.impact = f;
+      if (t.impact === null && vyBefore[i] < -1.5 && vy > vyBefore[i] + 1.2)
+        t.impact = f;
       const p = t.body.translation();
       const q = t.body.rotation();
-      t.track.push([r3(p.x), r3(p.y), r3(p.z), r3(q.x), r3(q.y), r3(q.z), r3(q.w)]);
+      t.track.push([
+        r3(p.x),
+        r3(p.y),
+        r3(p.z),
+        r3(q.x),
+        r3(q.y),
+        r3(q.z),
+        r3(q.w),
+      ]);
     });
     if (roller.body) {
       const p = roller.body.translation();
       const q = roller.body.rotation();
-      roller.track.push([r3(p.x), r3(p.y), r3(p.z), r3(q.x), r3(q.y), r3(q.z), r3(q.w)]);
+      roller.track.push([
+        r3(p.x),
+        r3(p.y),
+        r3(p.z),
+        r3(q.x),
+        r3(q.y),
+        r3(q.z),
+        r3(q.w),
+      ]);
     } else roller.track.push(null);
   }
   const last = roller.track[roller.track.length - 1];
@@ -220,7 +286,8 @@ const simulateOutro = (rollSpeed, record) => {
 };
 
 // Busca la velocidad inicial para que la llanta que rueda se detenga en x≈0.75
-let lo = 1, hi = 12;
+let lo = 1,
+  hi = 12;
 for (let i = 0; i < 30; i++) {
   const mid = (lo + hi) / 2;
   if (simulateOutro(mid, false) < 0.75) lo = mid;
@@ -229,9 +296,21 @@ for (let i = 0; i < 30; i++) {
 const outro = simulateOutro((lo + hi) / 2, true);
 const mixing = bakeMixing();
 
-writeFileSync(new URL("../src/data/mixing.json", import.meta.url), JSON.stringify(mixing));
-writeFileSync(new URL("../src/data/outro.json", import.meta.url), JSON.stringify(outro));
-console.log("mezclado:", mixing.items.length, "cuerpos ·", mixing.frames, "fotogramas");
+writeFileSync(
+  new URL("../src/data/mixing.json", import.meta.url),
+  JSON.stringify(mixing),
+);
+writeFileSync(
+  new URL("../src/data/outro.json", import.meta.url),
+  JSON.stringify(outro),
+);
+console.log(
+  "mezclado:",
+  mixing.items.length,
+  "cuerpos ·",
+  mixing.frames,
+  "fotogramas",
+);
 console.log(
   "cierre: impactos",
   outro.stack.map((s) => s.impact),
@@ -240,5 +319,11 @@ console.log(
   "· x final",
   outro.roller.track.at(-1)[0],
 );
-const finalY = mixing.items.map((it) => it.track.at(-1)?.[1]).filter((v) => v !== undefined);
-console.log("mezclado y final min/max:", Math.min(...finalY), Math.max(...finalY));
+const finalY = mixing.items
+  .map((it) => it.track.at(-1)?.[1])
+  .filter((v) => v !== undefined);
+console.log(
+  "mezclado y final min/max:",
+  Math.min(...finalY),
+  Math.max(...finalY),
+);

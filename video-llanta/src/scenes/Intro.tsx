@@ -8,6 +8,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import * as THREE from "three";
+import { BrandLogos } from "../components/BrandLogos";
 import { Backdrop, Scrims } from "../components/Overlay";
 import { Env, Rig } from "../components/three-helpers";
 import { FinishedTire } from "../components/Tires";
@@ -61,7 +62,7 @@ export const Intro: React.FC = () => {
     ...clamp,
     easing: Easing.inOut(Easing.quad),
   });
-  const camZ = interpolate(frame, [0, 90], [7.6, 6.4], {
+  const camZ = interpolate(frame, [0, 90], [8.1, 6.9], {
     ...clamp,
     easing: Easing.out(Easing.cubic),
   });
@@ -71,7 +72,7 @@ export const Intro: React.FC = () => {
       <Backdrop glow="rgba(255,110,20,0.16)" y="40%" />
       <ThreeCanvas width={width} height={height}>
         <Env intensity={0.7 * light} />
-        <Rig position={[0.2, 0.15, camZ]} target={[0, -0.75, 0]} fov={38} />
+        <Rig position={[0.2, 0.15, camZ]} target={[0, -0.3, 0]} fov={38} />
         <ambientLight intensity={0.08} />
         <directionalLight
           position={[3, 1, 4]}
@@ -108,6 +109,9 @@ export const Intro: React.FC = () => {
         <Dust frame={frame} />
       </ThreeCanvas>
       <Scrims />
+      <AbsoluteFill style={{ alignItems: "center", paddingTop: 120 }}>
+        <BrandLogos from={4} height={82} gap={36} />
+      </AbsoluteFill>
       <AbsoluteFill
         style={{ justifyContent: "flex-end", padding: "0 84px 250px" }}
       >
