@@ -1,0 +1,16 @@
+{
+  "fps": 30,
+  "width": 1080,
+  "height": 1920,
+  "transition": 10,
+  "scenes": [
+    { "id": "Intro", "duration": 90 },
+    { "id": "Mezclado", "duration": 125 },
+    { "id": "Extrusion", "duration": 125 },
+    { "id": "Talon", "duration": 105 },
+    { "id": "Construccion", "duration": 180 },
+    { "id": "Vulcanizado", "duration": 150 },
+    { "id": "Inspeccion", "duration": 105 },
+    { "id": "Cierre", "duration": 90 }
+  ]
+}
