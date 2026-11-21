@@ -34,9 +34,9 @@
     "typescript": "5.9.3"
   },
   "scripts": {
-    "dev": "node scripts/make-audio.mjs && remotion studio",
-    "bake": "node scripts/bake-physics.mjs && node scripts/make-audio.mjs",
-    "render": "node scripts/make-audio.mjs && remotion render LlantaRadial out/llanta-radial.mp4 --gl=angle",
+    "dev": "node scripts/make-audio.mjs --sfx-only && remotion studio",
+    "bake": "node scripts/bake-physics.mjs && node scripts/make-audio.mjs --sfx-only",
+    "render": "node scripts/make-audio.mjs --sfx-only && remotion render LlantaRadial out/llanta-radial.mp4 --gl=angle",
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
     "lint": "eslint src && tsc"

@@ -7,6 +7,9 @@ const timeline = read("../src/data/timeline.json");
 const mixing = read("../src/data/mixing.json");
 const outro = read("../src/data/outro.json");
 
+// --sfx-only: solo efectos (la música viene de Higgsfield en public/audio/music.mp3)
+const SFX_ONLY = process.argv.includes("--sfx-only");
+const OUT_FILE = SFX_ONLY ? "sfx.wav" : "soundtrack.wav";
 const SR = 48000;
 const FPS = timeline.fps;
 const T = timeline.transition;
@@ -82,7 +85,7 @@ const expDecay = (d) => (t) => Math.exp(-t / d);
 const attackDecay = (a, d) => (t) => (t < a ? t / a : Math.exp(-(t - a) / d));
 
 /* ---------- 1. Colchón grave ---------- */
-{
+if (!SFX_ONLY) {
   const notes = [55, 82.41, 110.0, 164.8];
   notes.forEach((f, j) => {
     tone(
@@ -125,7 +128,7 @@ const clank = (t0, amp = 1) => {
   );
   noiseBurst(t0, 0.08, () => 3000, expDecay(0.02), { amp: 0.15 * amp });
 };
-{
+if (!SFX_ONLY) {
   const beatStart = at("Mezclado", 0);
   const beatEnd = at("Cierre", 40);
   for (let t = beatStart, k = 0; t < beatEnd; t += BEAT, k++) {
@@ -420,7 +423,5 @@ for (let i = 0; i < N; i++) {
     46 + i * 4,
   );
 }
-writeFileSync(new URL("../public/audio/soundtrack.wav", import.meta.url), data);
-console.log(
-  `soundtrack.wav: ${DUR.toFixed(2)} s, pico previo ${peak.toFixed(2)}`,
-);
+writeFileSync(new URL(`../public/audio/${OUT_FILE}`, import.meta.url), data);
+console.log(`${OUT_FILE}: ${DUR.toFixed(2)} s, pico previo ${peak.toFixed(2)}`);

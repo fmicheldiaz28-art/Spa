@@ -2,7 +2,7 @@ import { Audio } from "@remotion/media";
 import { TransitionSeries, linearTiming } from "@remotion/transitions";
 import { fade } from "@remotion/transitions/fade";
 import { Fragment } from "react";
-import { AbsoluteFill, staticFile } from "remotion";
+import { AbsoluteFill, interpolate, staticFile } from "remotion";
 import { Bead } from "./scenes/Bead";
 import { Building } from "./scenes/Building";
 import { Curing } from "./scenes/Curing";
@@ -11,7 +11,9 @@ import { Intro } from "./scenes/Intro";
 import { Mixing } from "./scenes/Mixing";
 import { Outro } from "./scenes/Outro";
 import { XRay } from "./scenes/XRay";
-import { SCENES, TRANSITION } from "./timeline";
+import { SCENES, TOTAL_FRAMES, TRANSITION } from "./timeline";
+
+const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 
 const COMPONENTS: Record<string, React.FC> = {
   Intro,
@@ -47,6 +49,15 @@ export const TireVideo: React.FC = () => (
         );
       })}
     </TransitionSeries>
-    <Audio src={staticFile("audio/soundtrack.wav")} />
+    {/* Música generada con Higgsfield (ElevenLabs Music v2.5, instrumental) */}
+    <Audio
+      src={staticFile("audio/music.mp3")}
+      volume={(f) =>
+        0.8 *
+        interpolate(f, [TOTAL_FRAMES - 15, TOTAL_FRAMES - 1], [1, 0], clamp)
+      }
+    />
+    {/* Efectos sintetizados y sincronizados con la animación y la física */}
+    <Audio src={staticFile("audio/sfx.wav")} volume={0.6} />
   </AbsoluteFill>
 );
