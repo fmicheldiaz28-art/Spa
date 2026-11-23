@@ -1,0 +1,77 @@
+{
+  "tempo": 1.04,
+  "clips": [
+    {
+      "scene": "Intro",
+      "text": "Así se fabrica una llanta radial de camión.",
+      "start": 0.15,
+      "end": 3.092
+    },
+    {
+      "scene": "Mezclado",
+      "text": "Caucho, negro de humo, sílice y azufre",
+      "start": 3.242,
+      "end": 6.348
+    },
+    {
+      "scene": "Mezclado",
+      "text": "se mezclan en la Banbury.",
+      "start": 6.498,
+      "end": 7.883
+    },
+    {
+      "scene": "Extrusion",
+      "text": "Se forma la banda y el acero se cubre de caucho.",
+      "start": 8.033,
+      "end": 10.715
+    },
+    {
+      "scene": "Talon",
+      "text": "Alambre de acero forma los talones.",
+      "start": 10.865,
+      "end": 12.923
+    },
+    {
+      "scene": "Construccion",
+      "text": "Capa a capa, en el tambor,",
+      "start": 13.787,
+      "end": 15.508
+    },
+    {
+      "scene": "Construccion",
+      "text": "nace la llanta verde.",
+      "start": 15.658,
+      "end": 16.985
+    },
+    {
+      "scene": "Vulcanizado",
+      "text": "Calor y presión vulcanizan el caucho y graban el dibujo.",
+      "start": 19.453,
+      "end": 22.482
+    },
+    {
+      "scene": "Inspeccion",
+      "text": "Rayos X y control final:",
+      "start": 24.12,
+      "end": 25.774
+    },
+    {
+      "scene": "Inspeccion",
+      "text": "aprobada.",
+      "start": 25.924,
+      "end": 26.616
+    },
+    {
+      "scene": "Cierre",
+      "text": "Double Coin y Gomax.",
+      "start": 27.037,
+      "end": 28.469
+    },
+    {
+      "scene": "Cierre",
+      "text": "De caucho a carretera.",
+      "start": 28.619,
+      "end": 29.946
+    }
+  ]
+}

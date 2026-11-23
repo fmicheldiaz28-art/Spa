@@ -89,11 +89,11 @@ export const Outro: React.FC = () => {
             fontSize: 150,
             lineHeight: 0.9,
             color: C.ink,
-            opacity: interpolate(frame, [30, 44], [0, 1], {
+            opacity: interpolate(frame, [44, 58], [0, 1], {
               ...clamp,
               easing: ease,
             }),
-            translate: interpolate(frame, [30, 44], ["0px 40px", "0px 0px"], {
+            translate: interpolate(frame, [44, 58], ["0px 40px", "0px 0px"], {
               ...clamp,
               easing: ease,
             }),
@@ -110,7 +110,7 @@ export const Outro: React.FC = () => {
             fontSize: 44,
             color: C.muted,
             marginTop: 26,
-            opacity: interpolate(frame, [40, 54], [0, 1], {
+            opacity: interpolate(frame, [54, 66], [0, 1], {
               ...clamp,
               easing: ease,
             }),
@@ -133,13 +133,13 @@ export const Outro: React.FC = () => {
             borderRadius: 26,
             background: "rgba(8,10,13,0.82)",
             border: "1px solid rgba(255,255,255,0.14)",
-            opacity: interpolate(frame, [44, 54], [0, 1], {
+            opacity: interpolate(frame, [2, 12], [0, 1], {
               ...clamp,
               easing: ease,
             }),
           }}
         >
-          <BrandLogos from={46} height={96} gap={40} />
+          <BrandLogos from={4} height={96} gap={40} />
         </div>
       </AbsoluteFill>
       <Progress step={7} />

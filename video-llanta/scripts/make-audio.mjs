@@ -322,7 +322,7 @@ noiseBurst(
   },
 );
 {
-  const t = at("Cierre", 30);
+  const t = at("Cierre", 46);
   tone(t, 2.6, (x) => 36 + 25 * Math.exp(-x / 0.3), attackDecay(0.005, 0.9), {
     amp: 0.6,
   });
@@ -361,7 +361,7 @@ const shimmer = (t0, amp = 1) => {
   );
 };
 shimmer(at("Intro", 4));
-shimmer(at("Cierre", 46), 1.3);
+shimmer(at("Cierre", 4), 1.3);
 
 /* ---------- Master ---------- */
 // reverberación sencilla (combs) para dar espacio
