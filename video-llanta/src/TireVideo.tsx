@@ -82,7 +82,7 @@ export const TireVideo: React.FC = () => (
       src={staticFile("audio/sfx.wav")}
       volume={(f) => 0.6 * (1 - 0.45 * voiceActivity(f))}
     />
-    {/* Narración (Higgsfield TTS, voz "Isabella"), montada con scripts/make-narration.mjs */}
+    {/* Narración (voz clonada en Higgsfield), montada con scripts/make-narration.mjs */}
     <Audio src={staticFile("audio/narration.wav")} volume={1} />
   </AbsoluteFill>
 );

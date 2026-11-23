@@ -1,77 +1,60 @@
 {
-  "tempo": 1.04,
   "clips": [
     {
       "scene": "Intro",
       "text": "Así se fabrica una llanta radial de camión.",
       "start": 0.15,
-      "end": 3.092
+      "end": 2.742,
+      "tempo": 1
     },
     {
       "scene": "Mezclado",
-      "text": "Caucho, negro de humo, sílice y azufre",
-      "start": 3.242,
-      "end": 6.348
-    },
-    {
-      "scene": "Mezclado",
-      "text": "se mezclan en la Banbury.",
-      "start": 6.498,
-      "end": 7.883
+      "text": "Caucho, negro de humo, sílice y azufre se mezclan en la Banbury.",
+      "start": 2.953,
+      "end": 7.603,
+      "tempo": 1
     },
     {
       "scene": "Extrusion",
       "text": "Se forma la banda y el acero se cubre de caucho.",
-      "start": 8.033,
-      "end": 10.715
+      "start": 7.753,
+      "end": 10.898,
+      "tempo": 1
     },
     {
       "scene": "Talon",
       "text": "Alambre de acero forma los talones.",
-      "start": 10.865,
-      "end": 12.923
+      "start": 11.048,
+      "end": 13.418,
+      "tempo": 1
     },
     {
       "scene": "Construccion",
-      "text": "Capa a capa, en el tambor,",
+      "text": "Capa a capa, en el tambor, nace la llanta verde.",
       "start": 13.787,
-      "end": 15.508
-    },
-    {
-      "scene": "Construccion",
-      "text": "nace la llanta verde.",
-      "start": 15.658,
-      "end": 16.985
+      "end": 16.517,
+      "tempo": 1
     },
     {
       "scene": "Vulcanizado",
       "text": "Calor y presión vulcanizan el caucho y graban el dibujo.",
       "start": 19.453,
-      "end": 22.482
+      "end": 23.533,
+      "tempo": 1
     },
     {
       "scene": "Inspeccion",
-      "text": "Rayos X y control final:",
-      "start": 24.12,
-      "end": 25.774
-    },
-    {
-      "scene": "Inspeccion",
-      "text": "aprobada.",
-      "start": 25.924,
-      "end": 26.616
+      "text": "Rayos X y control final: aprobada.",
+      "start": 24.028,
+      "end": 26.478,
+      "tempo": 1
     },
     {
       "scene": "Cierre",
-      "text": "Double Coin y Gomax.",
-      "start": 27.037,
-      "end": 28.469
-    },
-    {
-      "scene": "Cierre",
-      "text": "De caucho a carretera.",
-      "start": 28.619,
-      "end": 29.946
+      "text": "Double Coin y Gomax. De caucho a carretera.",
+      "start": 26.628,
+      "end": 29.92,
+      "tempo": 1
     }
   ]
 }
